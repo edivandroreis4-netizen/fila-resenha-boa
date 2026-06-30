@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sistema individual de fila, atendimento e controle financeiro da Barbearia Resenha Boa." />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Resenha Boa" />
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <title>Fila Resenha Boa</title>
+</head>
+
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <img
+        src="./assets/images/logo-resenha-boa.jpg"
+        alt="Logotipo da Barbearia Resenha Boa"
+        class="brand__logo"
+      />
+
+      <div class="brand__content">
+        <p class="brand__eyebrow">Barbearia Resenha Boa</p>
+        <h1>Painel de atendimento</h1>
+        <p class="brand__professional">
+          Profissional:
+          <strong id="professionalHeader">não configurado</strong>
+        </p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="button button--secondary" id="editProfessionalButton" type="button">
+        Alterar profissional
+      </button>
+
+      <button class="button button--secondary" id="installAppButton" type="button" hidden>
+        Instalar aplicativo
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Navegação principal">
+    <button class="tab is-active" role="tab" type="button" data-target="painel" aria-selected="true">
+      Painel
+    </button>
+    <button class="tab" role="tab" type="button" data-target="fila" aria-selected="false">
+      Fila
+    </button>
+    <button class="tab" role="tab" type="button" data-target="clientes" aria-selected="false">
+      Clientes
+    </button>
+    <button class="tab" role="tab" type="button" data-target="servicos" aria-selected="false">
+      Serviços
+    </button>
+    <button class="tab" role="tab" type="button" data-target="historico" aria-selected="false">
+      Histórico
+    </button>
+    <button class="tab" role="tab" type="button" data-target="calendario" aria-selected="false">
+      Calendário
+    </button>
+    <button class="tab" role="tab" type="button" data-target="fechamento" aria-selected="false">
+      Fechamento
+    </button>
+  </nav>
+
+  <main id="conteudo" class="container">
+    <section id="painel" class="view is-visible" aria-labelledby="titulo-painel">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Visão geral</p>
+          <h2 id="titulo-painel">Resumo do dia</h2>
+        </div>
+        <p id="todayLabel" class="date-label"></p>
+      </div>
+
+      <div class="metrics" aria-label="Indicadores do dia">
+        <article class="metric-card">
+          <span>Na fila</span>
+          <strong id="metricQueue">0</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Em atendimento</span>
+          <strong id="metricInService">0</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Atendidos hoje</span>
+          <strong id="metricServed">0</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Faturamento</span>
+          <strong id="metricRevenue">R$ 0,00</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Ticket médio</span>
+          <strong id="metricAverage">R$ 0,00</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Tempo médio</span>
+          <strong id="metricAverageTime">00:00</strong>
+        </article>
+      </div>
+
+      <div class="layout-grid">
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="section-heading__eyebrow">Cadastro</p>
+              <h3>Adicionar cliente</h3>
+            </div>
+          </div>
+
+          <form id="customerForm" class="form-grid">
+            <div class="field">
+              <label for="customerName">Nome do cliente</label>
+              <input
+                id="customerName"
+                name="customerName"
+                type="text"
+                minlength="2"
+                maxlength="80"
+                autocomplete="name"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label for="customerPhone">WhatsApp</label>
+              <input
+                id="customerPhone"
+                name="customerPhone"
+                type="tel"
+                inputmode="numeric"
+                placeholder="(71) 99999-9999"
+                maxlength="15"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label for="customerService">Serviço</label>
+              <select id="customerService" name="customerService" required>
+                <option value="">Selecione</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="customerPayment">Forma de pagamento</label>
+              <select id="customerPayment" name="customerPayment" required>
+                <option value="">Selecione</option>
+                <option value="Pix">Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Débito">Cartão de débito</option>
+                <option value="Crédito">Cartão de crédito</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="customerValue">Valor do serviço</label>
+              <input
+                id="customerValue"
+                name="customerValue"
+                type="text"
+                readonly
+                aria-readonly="true"
+              />
+            </div>
+
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">
+                Adicionar à fila
+              </button>
+
+              <button class="button button--secondary" type="reset">
+                Limpar
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header panel__header--actions">
+            <div>
+              <p class="section-heading__eyebrow">Próximo atendimento</p>
+              <h3 id="nextCustomerName">Fila vazia</h3>
+              <p id="nextCustomerDetails" class="muted">
+                Cadastre um cliente para começar.
+              </p>
+            </div>
+
+            <button class="button button--accent" id="callNextButton" type="button">
+              Chamar próximo
+            </button>
+          </div>
+
+          <div id="quickQueue" class="compact-list" aria-live="polite"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="fila" class="view" aria-labelledby="titulo-fila">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Atendimentos</p>
+          <h2 id="titulo-fila">Fila atual</h2>
+        </div>
+      </div>
+
+      <div id="queueList" class="card-list" aria-live="polite"></div>
+    </section>
+
+
+    <section id="clientes" class="view" aria-labelledby="titulo-clientes">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Clientes recorrentes</p>
+          <h2 id="titulo-clientes">Clientes cadastrados</h2>
+        </div>
+      </div>
+
+      <div class="layout-grid">
+        <section class="panel">
+          <h3>Cadastrar cliente</h3>
+
+          <form id="knownCustomerForm" class="form-grid">
+            <input id="knownCustomerId" type="hidden" />
+
+            <div class="field">
+              <label for="knownCustomerName">Nome</label>
+              <input id="knownCustomerName" type="text" minlength="2" maxlength="80" required />
+            </div>
+
+            <div class="field">
+              <label for="knownCustomerPhone">WhatsApp</label>
+              <input id="knownCustomerPhone" type="tel" inputmode="numeric" maxlength="15" required />
+            </div>
+
+            <div class="field">
+              <label for="knownCustomerService">Serviço habitual</label>
+              <select id="knownCustomerService" required></select>
+            </div>
+
+            <div class="field">
+              <label for="knownCustomerPayment">Pagamento preferido</label>
+              <select id="knownCustomerPayment" required>
+                <option value="Pix">Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Débito">Cartão de débito</option>
+                <option value="Crédito">Cartão de crédito</option>
+              </select>
+            </div>
+
+            <div class="field field--full">
+              <label for="knownCustomerNotes">Observações</label>
+              <input id="knownCustomerNotes" type="text" maxlength="120" placeholder="Ex.: prefere corte baixo" />
+            </div>
+
+            <div class="form-actions">
+              <button class="button button--primary" id="saveKnownCustomerButton" type="submit">
+                Salvar cliente
+              </button>
+
+              <button class="button button--secondary" id="cancelKnownCustomerEditButton" type="button" hidden>
+                Cancelar edição
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header panel__header--actions">
+            <div>
+              <h3>Lista de clientes</h3>
+              <p class="muted">Use a busca e adicione o cliente diretamente à fila.</p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="knownCustomerSearch">Buscar cliente</label>
+            <input id="knownCustomerSearch" type="search" placeholder="Nome ou telefone" />
+          </div>
+
+          <div id="knownCustomerList" class="card-list card-list--compact"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="servicos" class="view" aria-labelledby="titulo-servicos">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Administração</p>
+          <h2 id="titulo-servicos">Serviços e preços</h2>
+        </div>
+      </div>
+
+      <div class="layout-grid">
+        <section class="panel">
+          <h3>Cadastrar serviço</h3>
+
+          <form id="serviceForm" class="form-grid">
+            <input id="serviceId" type="hidden" />
+
+            <div class="field">
+              <label for="serviceName">Nome do serviço</label>
+              <input id="serviceName" type="text" minlength="2" maxlength="60" required />
+            </div>
+
+            <div class="field">
+              <label for="servicePrice">Preço</label>
+              <input
+                id="servicePrice"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                required
+              />
+            </div>
+
+            <div class="form-actions">
+              <button class="button button--primary" type="submit" id="saveServiceButton">
+                Salvar serviço
+              </button>
+
+              <button
+                class="button button--secondary"
+                type="button"
+                id="cancelServiceEditButton"
+                hidden
+              >
+                Cancelar edição
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h3>Serviços cadastrados</h3>
+          <div id="serviceList" class="card-list card-list--compact"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="historico" class="view" aria-labelledby="titulo-historico">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Financeiro</p>
+          <h2 id="titulo-historico">Histórico de atendimentos</h2>
+        </div>
+
+        <div class="toolbar">
+          <div class="field field--inline">
+            <label for="historyDateFilter">Filtrar por data</label>
+            <input id="historyDateFilter" type="date" />
+          </div>
+
+          <button class="button button--secondary" id="clearHistoryFilterButton" type="button">
+            Mostrar todos
+          </button>
+
+          <button class="button button--danger-outline" id="clearHistoryButton" type="button">
+            Limpar histórico
+          </button>
+        </div>
+      </div>
+
+      <div id="historyList" class="card-list"></div>
+    </section>
+
+    <section id="calendario" class="view" aria-labelledby="titulo-calendario">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Resumo mensal</p>
+          <h2 id="titulo-calendario">Calendário de atendimentos</h2>
+        </div>
+
+        <div class="calendar-navigation">
+          <button class="button button--secondary" id="previousMonthButton" type="button" aria-label="Mês anterior">
+            ←
+          </button>
+
+          <strong id="calendarMonthLabel"></strong>
+
+          <button class="button button--secondary" id="nextMonthButton" type="button" aria-label="Próximo mês">
+            →
+          </button>
+        </div>
+      </div>
+
+
+      <section class="monthly-summary" aria-label="Resumo financeiro do mês">
+        <article class="metric-card">
+          <span>Atendimentos no mês</span>
+          <strong id="monthlyAttendanceCount">0</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Faturamento mensal</span>
+          <strong id="monthlyRevenue">R$ 0,00</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Ticket médio mensal</span>
+          <strong id="monthlyAverage">R$ 0,00</strong>
+        </article>
+
+        <article class="metric-card">
+          <span>Tempo médio mensal</span>
+          <strong id="monthlyAverageTime">00:00</strong>
+        </article>
+      </section>
+
+      <div class="monthly-breakdown">
+        <article class="panel">
+          <h3>Formas de pagamento no mês</h3>
+          <div id="monthlyPaymentSummary" class="summary-list"></div>
+        </article>
+
+        <article class="panel">
+          <h3>Serviços realizados no mês</h3>
+          <div id="monthlyServiceSummary" class="summary-list"></div>
+        </article>
+      </div>
+
+      <div class="calendar-weekdays" aria-hidden="true">
+        <span>Dom</span>
+        <span>Seg</span>
+        <span>Ter</span>
+        <span>Qua</span>
+        <span>Qui</span>
+        <span>Sex</span>
+        <span>Sáb</span>
+      </div>
+
+      <div id="calendarGrid" class="calendar-grid"></div>
+    </section>
+
+    <section id="fechamento" class="view" aria-labelledby="titulo-fechamento">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Controle diário</p>
+          <h2 id="titulo-fechamento">Fechamento do dia</h2>
+        </div>
+
+        <div class="toolbar">
+          <div class="field field--inline">
+            <label for="reportDate">Data do resumo</label>
+            <input id="reportDate" type="date" />
+          </div>
+
+          <button class="button button--secondary" id="printReportButton" type="button">
+            Imprimir / salvar PDF
+          </button>
+
+          <button class="button button--primary" id="closeDayButton" type="button">
+            Fechar dia
+          </button>
+        </div>
+      </div>
+
+      <section id="dailyReport" class="report panel">
+        <div class="report__header">
+          <div>
+            <p class="section-heading__eyebrow">Barbearia Resenha Boa</p>
+            <h3>Resumo diário</h3>
+            <p id="reportProfessional" class="muted"></p>
+          </div>
+
+          <strong id="reportDateLabel"></strong>
+        </div>
+
+        <div class="metrics metrics--report">
+          <article class="metric-card">
+            <span>Atendimentos</span>
+            <strong id="reportAttendanceCount">0</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Faturamento</span>
+            <strong id="reportRevenue">R$ 0,00</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Ticket médio</span>
+            <strong id="reportAverage">R$ 0,00</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Tempo médio</span>
+            <strong id="reportAverageTime">00:00</strong>
+          </article>
+        </div>
+
+        <div class="report-grid">
+          <article>
+            <h4>Por forma de pagamento</h4>
+            <div id="paymentSummary" class="summary-list"></div>
+          </article>
+
+          <article>
+            <h4>Por serviço</h4>
+            <div id="serviceSummary" class="summary-list"></div>
+          </article>
+        </div>
+
+        <div id="closureStatus" class="closure-status"></div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Barbearia Resenha Boa — Desde 2017</p>
+    <p class="developer-credit">Desenvolvido por <strong>Edivandro Lima</strong></p>
+  </footer>
+
+
+  <dialog id="knownCustomerQueueDialog" class="dialog">
+    <form id="knownCustomerQueueForm" class="dialog__content">
+      <input id="knownCustomerQueueId" type="hidden" />
+
+      <div>
+        <p class="section-heading__eyebrow">Adicionar à fila</p>
+        <h2 id="knownCustomerQueueTitle">Confirmar cliente</h2>
+        <p class="muted">Confirme o serviço e o pagamento antes de adicionar.</p>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="knownCustomerQueueService">Serviço</label>
+          <select id="knownCustomerQueueService" required></select>
+        </div>
+
+        <div class="field">
+          <label for="knownCustomerQueuePayment">Pagamento</label>
+          <select id="knownCustomerQueuePayment" required>
+            <option value="Pix">Pix</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Débito">Cartão de débito</option>
+            <option value="Crédito">Cartão de crédito</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="dialog__actions">
+        <button class="button button--primary" type="submit">Adicionar à fila</button>
+        <button class="button button--secondary" id="cancelKnownCustomerQueueButton" type="button">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="professionalDialog" class="dialog">
+    <form id="professionalForm" class="dialog__content">
+      <div>
+        <p class="section-heading__eyebrow">Configuração do aparelho</p>
+        <h2>Identifique o profissional</h2>
+        <p class="muted">
+          Este nome será aplicado automaticamente aos atendimentos registrados neste celular.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="professionalName">Nome do profissional</label>
+        <input
+          id="professionalName"
+          type="text"
+          minlength="2"
+          maxlength="60"
+          autocomplete="name"
+          required
+        />
+      </div>
+
+      <div class="dialog__actions">
+        <button class="button button--primary" type="submit">
+          Salvar profissional
+        </button>
+
+        <button class="button button--secondary" id="cancelProfessionalButton" type="button">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="editCustomerDialog" class="dialog">
+    <form id="editCustomerForm" class="dialog__content">
+      <input id="editCustomerId" type="hidden" />
+
+      <div>
+        <p class="section-heading__eyebrow">Correção de dados</p>
+        <h2>Editar cliente</h2>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="editCustomerName">Nome</label>
+          <input id="editCustomerName" type="text" minlength="2" maxlength="80" required />
+        </div>
+
+        <div class="field">
+          <label for="editCustomerPhone">WhatsApp</label>
+          <input id="editCustomerPhone" type="tel" inputmode="numeric" maxlength="15" required />
+        </div>
+
+        <div class="field">
+          <label for="editCustomerService">Serviço</label>
+          <select id="editCustomerService" required></select>
+        </div>
+
+        <div class="field">
+          <label for="editCustomerPayment">Pagamento</label>
+          <select id="editCustomerPayment" required>
+            <option value="Pix">Pix</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Débito">Cartão de débito</option>
+            <option value="Crédito">Cartão de crédito</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="dialog__actions">
+        <button class="button button--primary" type="submit">
+          Salvar alterações
+        </button>
+
+        <button class="button button--secondary" id="cancelCustomerEditButton" type="button">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="calendarDayDialog" class="dialog">
+    <div class="dialog__content">
+      <div class="dialog__header">
+        <div>
+          <p class="section-heading__eyebrow">Resumo do dia</p>
+          <h2 id="calendarDayDialogTitle">Atendimentos</h2>
+          <p id="calendarDayDialogSummary" class="muted"></p>
+        </div>
+
+        <button
+          class="button button--secondary"
+          id="closeCalendarDayDialogButton"
+          type="button"
+          aria-label="Fechar detalhes do dia"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <div id="calendarDayDialogList" class="card-list card-list--compact"></div>
+
+      <div class="dialog__actions">
+        <button class="button button--primary" id="openDayHistoryButton" type="button">
+          Ver no histórico
+        </button>
+
+        <button class="button button--secondary" id="openDayReportButton" type="button">
+          Abrir fechamento
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
