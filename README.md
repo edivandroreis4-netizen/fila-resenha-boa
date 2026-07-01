@@ -154,3 +154,53 @@ O calendário agora mostra automaticamente, para o mês selecionado:
 - quantidade e faturamento por serviço.
 
 Ao navegar para o mês anterior ou seguinte, todos os indicadores são recalculados automaticamente.
+
+
+## Tempo previsto por atendimento
+
+Antes de iniciar, o barbeiro escolhe 15, 30, 45, 60 minutos ou um tempo personalizado entre 1 e 240 minutos.
+
+Durante o atendimento, o sistema exibe o tempo decorrido e a contagem regressiva. Ao chegar a zero, tenta emitir som, vibrar o celular e mostra um alerta com as opções **Finalizar** ou **Adicionar 5 min**.
+
+O alerta é mais confiável quando o aplicativo está aberto ou em primeiro plano. Alguns celulares limitam som e execução quando a tela está bloqueada ou o aplicativo está totalmente fechado.
+
+
+## Efeito visual no botão principal
+
+O botão **Adicionar à fila** recebeu brilho externo, pulso, leve escala no hover e foco acessível. A animação é desativada para usuários que preferem menos movimento.
+
+
+## Perfil e sons personalizados
+
+- Foto média do profissional no cabeçalho.
+- Upload de JPG, PNG ou WebP.
+- Limite de 1 MB.
+- Redimensionamento automático.
+- Foto salva no próprio aparelho.
+- Foto pequena do desenvolvedor no rodapé.
+- Bip suave, bip duplo, campainha digital e alerta forte.
+- Controle de volume.
+- Botão **Testar som**.
+- Opção **Somente vibrar**.
+- Preferências salvas no localStorage.
+
+A imagem `assets/images/edivandro-lima.jpg` é provisória, com as iniciais EL. Para usar a foto real, substitua esse arquivo mantendo o mesmo nome.
+
+
+## Correção da foto do profissional
+
+- Corrigida a atualização da foto no cabeçalho e na prévia.
+- A foto agora é salva imediatamente no localStorage.
+- Arquivos de até 5 MB podem ser selecionados.
+- A imagem é redimensionada e comprimida automaticamente antes de ser armazenada.
+
+
+## Foto do desenvolvedor
+
+A foto real de Edivandro Lima foi adicionada ao rodapé em:
+
+```text
+assets/images/edivandro-lima.jpg
+```
+
+A imagem foi recortada em formato quadrado e otimizada para carregamento rápido.

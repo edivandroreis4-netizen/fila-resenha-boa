@@ -1,4 +1,4 @@
-const CACHE_NAME = "fila-resenha-boa-v14";
+const CACHE_NAME = "fila-resenha-boa-v14-foto-edivandro-tempo";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,8 @@ const APP_ASSETS = [
   "./js/app.js",
   "./manifest.json",
   "./assets/images/logo-resenha-boa.jpg",
+  "./assets/images/edivandro-lima.jpg",
+  "./assets/images/professional-placeholder.svg",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png",

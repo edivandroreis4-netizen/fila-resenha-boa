@@ -17,12 +17,19 @@ const DEFAULT_SERVICES = [
 let services = load(STORAGE_KEYS.services, DEFAULT_SERVICES);
 let queue = load(STORAGE_KEYS.queue, []);
 let history = load(STORAGE_KEYS.history, []);
+let alertSettings = load(STORAGE_KEYS.alertSettings, {
+  soundType: "soft",
+  volume: 70,
+  vibrationOnly: false
+});
 let professional = load(STORAGE_KEYS.professional, { name: "" });
 let closures = load(STORAGE_KEYS.closures, []);
 let knownCustomers = load(STORAGE_KEYS.knownCustomers, []);
 let deferredInstallPrompt = null;
 let calendarDate = new Date();
 let selectedCalendarDate = localDateKey();
+let audioContext = null;
+const alertedCustomers = new Set();
 
 const elements = {
   tabs: document.querySelectorAll(".tab"),
@@ -70,6 +77,14 @@ const elements = {
   knownCustomerQueuePayment: document.querySelector("#knownCustomerQueuePayment"),
   cancelKnownCustomerQueueButton: document.querySelector("#cancelKnownCustomerQueueButton"),
 
+  serviceDurationDialog: document.querySelector("#serviceDurationDialog"),
+  serviceDurationForm: document.querySelector("#serviceDurationForm"),
+  serviceDurationCustomerId: document.querySelector("#serviceDurationCustomerId"),
+  serviceDurationTitle: document.querySelector("#serviceDurationTitle"),
+  serviceDurationMinutes: document.querySelector("#serviceDurationMinutes"),
+  cancelServiceDurationButton: document.querySelector("#cancelServiceDurationButton"),
+  durationOptionButtons: document.querySelectorAll(".duration-option"),
+
   historyDateFilter: document.querySelector("#historyDateFilter"),
   clearHistoryFilterButton: document.querySelector("#clearHistoryFilterButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
@@ -83,6 +98,16 @@ const elements = {
   metricAverageTime: document.querySelector("#metricAverageTime"),
 
   professionalHeader: document.querySelector("#professionalHeader"),
+  professionalPhoto: document.querySelector("#professionalPhoto"),
+  professionalPhotoPreview: document.querySelector("#professionalPhotoPreview"),
+  professionalPhotoInput: document.querySelector("#professionalPhotoInput"),
+  removeProfessionalPhotoButton: document.querySelector("#removeProfessionalPhotoButton"),
+  alertSoundType: document.querySelector("#alertSoundType"),
+  alertVolume: document.querySelector("#alertVolume"),
+  alertVolumeValue: document.querySelector("#alertVolumeValue"),
+  vibrationOnly: document.querySelector("#vibrationOnly"),
+  soundSettingsForm: document.querySelector("#soundSettingsForm"),
+  testSoundButton: document.querySelector("#testSoundButton"),
   editProfessionalButton: document.querySelector("#editProfessionalButton"),
   professionalDialog: document.querySelector("#professionalDialog"),
   professionalForm: document.querySelector("#professionalForm"),
@@ -147,6 +172,7 @@ function saveAll() {
   localStorage.setItem(STORAGE_KEYS.services, JSON.stringify(services));
   localStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(queue));
   localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+  localStorage.setItem(STORAGE_KEYS.alertSettings, JSON.stringify(alertSettings));
   localStorage.setItem(STORAGE_KEYS.professional, JSON.stringify(professional));
   localStorage.setItem(STORAGE_KEYS.closures, JSON.stringify(closures));
   localStorage.setItem(STORAGE_KEYS.knownCustomers, JSON.stringify(knownCustomers));
@@ -258,9 +284,134 @@ async function confirmAction({ title, html, confirmText = "Confirmar", icon = "q
   return result.isConfirmed;
 }
 
+
+function remainingSeconds(customer) {
+  if (!customer.expectedEndAt) return null;
+  return Math.floor((new Date(customer.expectedEndAt) - new Date()) / 1000);
+}
+
+function playAlarmSound(type = alertSettings.soundType, volume = alertSettings.volume) {
+  if (alertSettings.vibrationOnly) return;
+
+  try {
+    audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+    const gainValue = Math.max(0.01, Math.min(1, Number(volume) / 100));
+    const now = audioContext.currentTime;
+    const gain = audioContext.createGain();
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(gainValue, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+    gain.connect(audioContext.destination);
+
+    const patterns = {
+      soft: [{frequency:660,start:0,duration:.45}],
+      double: [{frequency:820,start:0,duration:.22},{frequency:820,start:.32,duration:.22}],
+      bell: [{frequency:1046,start:0,duration:.35},{frequency:784,start:.38,duration:.5}],
+      strong: [{frequency:980,start:0,duration:.28},{frequency:620,start:.28,duration:.28},{frequency:980,start:.56,duration:.42}]
+    };
+
+    for (const note of (patterns[type] || patterns.soft)) {
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = type === "bell" ? "triangle" : "sine";
+      oscillator.frequency.setValueAtTime(note.frequency, now + note.start);
+      oscillator.connect(gain);
+      oscillator.start(now + note.start);
+      oscillator.stop(now + note.start + note.duration);
+    }
+  } catch (error) {
+    console.warn("Alerta sonoro indisponível.", error);
+  }
+}
+
+function addMinutesToService(customer, minutes = 5) {
+  const base = customer.expectedEndAt && new Date(customer.expectedEndAt) > new Date()
+    ? new Date(customer.expectedEndAt)
+    : new Date();
+
+  customer.expectedEndAt = new Date(base.getTime() + minutes * 60000).toISOString();
+  customer.plannedDurationMinutes = Number(customer.plannedDurationMinutes || 0) + minutes;
+  alertedCustomers.delete(customer.id);
+  renderAll();
+  showToast(`${minutes} minutos adicionados.`);
+}
+
+async function showTimeFinishedAlert(customer) {
+  playAlarmSound();
+  if ("vibrate" in navigator) navigator.vibrate([250,120,250,120,500]);
+
+  const result = await Swal.fire({
+    title: "Tempo previsto encerrado",
+    html: `<strong>${escapeHtml(customer.name)}</strong><br>${escapeHtml(customer.serviceName)} — ${formatMoney(customer.value)}`,
+    icon: "warning",
+    showCancelButton: true,
+    showDenyButton: true,
+    confirmButtonText: "Finalizar",
+    denyButtonText: "Adicionar 5 min",
+    cancelButtonText: "Fechar"
+  });
+
+  if (result.isConfirmed) await finishCustomer(customer);
+  if (result.isDenied) addMinutesToService(customer, 5);
+}
+
+function openServiceDurationDialog(customer) {
+  elements.serviceDurationCustomerId.value = customer.id;
+  elements.serviceDurationTitle.textContent = `Tempo previsto para ${customer.name}`;
+  elements.serviceDurationMinutes.value = 30;
+  elements.durationOptionButtons.forEach(button => {
+    button.classList.toggle("is-selected", button.dataset.minutes === "30");
+  });
+  elements.serviceDurationDialog.showModal();
+}
+
+
+function resizeImageFile(file, maxSize = 256, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+
+        const context = canvas.getContext("2d");
+        const scale = Math.max(maxSize / image.width, maxSize / image.height);
+        const width = image.width * scale;
+        const height = image.height * scale;
+        const x = (maxSize - width) / 2;
+        const y = (maxSize - height) / 2;
+
+        context.drawImage(image, x, y, width, height);
+        resolve(canvas.toDataURL("image/webp", quality));
+      };
+
+      image.onerror = reject;
+      image.src = reader.result;
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderProfessional() {
-  elements.professionalHeader.textContent = professional.name?.trim() || "não configurado";
-  elements.reportProfessional.textContent = `Profissional: ${professional.name?.trim() || "não configurado"}`;
+  const name = professional.name?.trim() || "não configurado";
+  const photo = professional.photo || "./assets/images/professional-placeholder.svg";
+
+  elements.professionalHeader.textContent = name;
+  elements.reportProfessional.textContent = `Profissional: ${name}`;
+
+  elements.professionalPhoto.src = photo;
+  elements.professionalPhotoPreview.src = photo;
+
+  elements.alertSoundType.value = alertSettings.soundType;
+  elements.alertVolume.value = alertSettings.volume;
+  elements.alertVolumeValue.textContent = `${alertSettings.volume}%`;
+  elements.vibrationOnly.checked = alertSettings.vibrationOnly;
 }
 
 function renderServiceOptions() {
@@ -391,11 +542,16 @@ function customerCard(customer, index) {
   const serviceSeconds = customer.startedAt
     ? durationSeconds(customer.startedAt)
     : 0;
+  const remaining = customer.status === "em_atendimento" ? remainingSeconds(customer) : null;
+  const overdue = remaining !== null && remaining <= 0;
 
   const primaryAction = customer.status === "em_atendimento"
     ? `
       <button class="button button--success" type="button" data-action="finish" data-id="${customer.id}">
         Finalizar
+      </button>
+      <button class="button button--secondary" type="button" data-action="add-five" data-id="${customer.id}">
+        +5 min
       </button>
     `
     : `
@@ -437,15 +593,19 @@ function customerCard(customer, index) {
         </div>
       </div>
 
-      <div class="timer ${customer.status === "em_atendimento" ? "timer--active" : "timer--waiting"}">
-        <span class="timer__icon" aria-hidden="true">
-          ${customer.status === "em_atendimento" ? "⏳" : "⌛"}
-        </span>
-
+      <div class="timer ${
+        customer.status === "em_atendimento"
+          ? overdue ? "timer--active timer--overdue" : "timer--active timer--countdown"
+          : "timer--waiting"
+      }">
+        <span class="timer__icon" aria-hidden="true">${customer.status === "em_atendimento" ? "⏳" : "⌛"}</span>
         <span class="timer__content">
           ${
             customer.status === "em_atendimento"
-              ? `Tempo de atendimento: <strong data-live-service="${customer.id}">${formatDuration(serviceSeconds)}</strong>`
+              ? `Tempo de atendimento: <strong data-live-service="${customer.id}">${formatDuration(serviceSeconds)}</strong>
+                 <span class="timer__remaining" data-live-remaining="${customer.id}">
+                   ${overdue ? `Tempo excedido: ${formatDuration(Math.abs(remaining))}` : `Tempo restante: ${formatDuration(remaining)}`}
+                 </span>`
               : `Tempo de espera: <strong data-live-wait="${customer.id}">${formatDuration(waitingSeconds)}</strong>`
           }
         </span>
@@ -978,7 +1138,7 @@ function openWhatsApp(customer) {
   );
 }
 
-async function startService(customer) {
+async function startService(customer, plannedMinutes = null) {
   const anotherInService = queue.find(
     item => item.status === "em_atendimento" && item.id !== customer.id
   );
@@ -993,22 +1153,37 @@ async function startService(customer) {
     return;
   }
 
+  if (plannedMinutes === null) {
+    openServiceDurationDialog(customer);
+    return;
+  }
+
+  const minutes = Number(plannedMinutes);
+
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) {
+    showToast("Informe um tempo entre 1 e 240 minutos.");
+    return;
+  }
+
   const confirmed = await confirmAction({
     title: "Iniciar atendimento?",
-    html: `
-      <strong>${escapeHtml(customer.name)}</strong><br>
-      ${escapeHtml(customer.serviceName)} — ${formatMoney(customer.value)}
-    `,
+    html: `<strong>${escapeHtml(customer.name)}</strong><br>${escapeHtml(customer.serviceName)} — ${formatMoney(customer.value)}<br><strong>Tempo previsto:</strong> ${minutes} minutos`,
     confirmText: "Iniciar",
     icon: "question"
   });
 
   if (!confirmed) return;
 
+  const startedAt = new Date();
   customer.status = "em_atendimento";
-  customer.startedAt = new Date().toISOString();
+  customer.startedAt = startedAt.toISOString();
+  customer.plannedDurationMinutes = minutes;
+  customer.expectedEndAt = new Date(startedAt.getTime() + minutes * 60000).toISOString();
+
+  alertedCustomers.delete(customer.id);
+  elements.serviceDurationDialog.close();
   renderAll();
-  showToast("Cronômetro de atendimento iniciado.");
+  showToast("Atendimento e contagem regressiva iniciados.");
 }
 
 async function finishCustomer(customer) {
@@ -1178,6 +1353,10 @@ elements.queueList.addEventListener("click", async event => {
       await finishCustomer(customer);
       break;
 
+    case "add-five":
+      addMinutesToService(customer, 5);
+      break;
+
     case "edit":
       openCustomerEdit(customer);
       break;
@@ -1232,6 +1411,31 @@ elements.cancelCustomerEditButton.addEventListener("click", () => {
   elements.editCustomerDialog.close();
 });
 
+
+
+elements.durationOptionButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    elements.serviceDurationMinutes.value = button.dataset.minutes;
+    elements.durationOptionButtons.forEach(item => item.classList.toggle("is-selected", item === button));
+  });
+});
+
+elements.serviceDurationMinutes.addEventListener("input", () => {
+  elements.durationOptionButtons.forEach(button => {
+    button.classList.toggle("is-selected", button.dataset.minutes === elements.serviceDurationMinutes.value);
+  });
+});
+
+elements.serviceDurationForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const customer = queue.find(item => item.id === elements.serviceDurationCustomerId.value);
+  if (!customer) return showToast("Cliente não encontrado.");
+  await startService(customer, elements.serviceDurationMinutes.value);
+});
+
+elements.cancelServiceDurationButton.addEventListener("click", () => {
+  elements.serviceDurationDialog.close();
+});
 
 elements.knownCustomerPhone.addEventListener("input", event => {
   event.target.value = formatPhone(event.target.value);
@@ -1527,7 +1731,10 @@ elements.professionalForm.addEventListener("submit", event => {
     return;
   }
 
-  professional = { name };
+  professional = {
+    ...professional,
+    name
+  };
   elements.professionalDialog.close();
   renderAll();
   showToast("Profissional configurado com sucesso.");
@@ -1630,6 +1837,79 @@ elements.closeDayButton.addEventListener("click", async () => {
   });
 });
 
+
+elements.professionalPhotoInput.addEventListener("change", async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowed.includes(file.type)) {
+    showToast("Use JPG, PNG ou WebP.");
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("A imagem deve ter no máximo 5 MB.");
+    event.target.value = "";
+    return;
+  }
+
+  try {
+    professional.photo = await resizeImageFile(file);
+    saveAll();
+    renderAll();
+    showToast("Foto atualizada com sucesso.");
+  } catch {
+    showToast("Não foi possível processar a imagem.");
+  }
+});
+
+elements.removeProfessionalPhotoButton.addEventListener("click", async () => {
+  const confirmed = await confirmAction({
+    title: "Remover foto?",
+    html: "A imagem padrão voltará a ser exibida.",
+    confirmText: "Remover",
+    icon: "warning"
+  });
+
+  if (!confirmed) return;
+
+  professional.photo = "";
+  elements.professionalPhotoInput.value = "";
+  saveAll();
+  renderAll();
+  showToast("Foto removida.");
+});
+
+elements.alertVolume.addEventListener("input", () => {
+  elements.alertVolumeValue.textContent = `${elements.alertVolume.value}%`;
+});
+
+elements.soundSettingsForm.addEventListener("submit", event => {
+  event.preventDefault();
+
+  alertSettings = {
+    soundType: elements.alertSoundType.value,
+    volume: Number(elements.alertVolume.value),
+    vibrationOnly: elements.vibrationOnly.checked
+  };
+
+  renderAll();
+  showToast("Configurações de alerta salvas.");
+});
+
+elements.testSoundButton.addEventListener("click", () => {
+  if (elements.vibrationOnly.checked) {
+    if ("vibrate" in navigator) navigator.vibrate([250,120,350]);
+    showToast("Teste de vibração executado.");
+    return;
+  }
+
+  playAlarmSound(elements.alertSoundType.value, Number(elements.alertVolume.value));
+  showToast("Som de teste reproduzido.");
+});
+
 window.addEventListener("beforeinstallprompt", event => {
   event.preventDefault();
   deferredInstallPrompt = event;
@@ -1668,6 +1948,27 @@ setInterval(() => {
 
     if (customer?.startedAt) {
       element.textContent = formatDuration(durationSeconds(customer.startedAt));
+    }
+  });
+
+  document.querySelectorAll("[data-live-remaining]").forEach(element => {
+    const customer = queue.find(item => item.id === element.dataset.liveRemaining);
+    if (!customer?.expectedEndAt) return;
+
+    const remaining = remainingSeconds(customer);
+    element.textContent = remaining <= 0
+      ? `Tempo excedido: ${formatDuration(Math.abs(remaining))}`
+      : `Tempo restante: ${formatDuration(remaining)}`;
+
+    const timerBox = element.closest(".timer");
+    if (timerBox) {
+      timerBox.classList.toggle("timer--overdue", remaining <= 0);
+      timerBox.classList.toggle("timer--countdown", remaining > 0);
+    }
+
+    if (remaining <= 0 && !alertedCustomers.has(customer.id)) {
+      alertedCustomers.add(customer.id);
+      showTimeFinishedAlert(customer);
     }
   });
 

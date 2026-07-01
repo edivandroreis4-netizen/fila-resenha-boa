@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111111" />
   <meta name="description" content="Sistema individual de fila, atendimento e controle financeiro da Barbearia Resenha Boa." />
 
   <link rel="manifest" href="./manifest.json" />
@@ -27,6 +28,7 @@
         class="brand__logo"
       />
 
+      <img id="professionalPhoto" class="professional-photo" src="./assets/images/professional-placeholder.svg" alt="Foto do profissional" />
       <div class="brand__content">
         <p class="brand__eyebrow">Barbearia Resenha Boa</p>
         <h1>Painel de atendimento</h1>
@@ -48,27 +50,30 @@
     </div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Navegação principal">
-    <button class="tab is-active" role="tab" type="button" data-target="painel" aria-selected="true">
+  <nav class="tabs" aria-label="Navegação principal">
+    <button class="tab is-active" type="button" data-target="painel" aria-selected="true">
       Painel
     </button>
-    <button class="tab" role="tab" type="button" data-target="fila" aria-selected="false">
+    <button class="tab" type="button" data-target="fila" aria-selected="false">
       Fila
     </button>
-    <button class="tab" role="tab" type="button" data-target="clientes" aria-selected="false">
+    <button class="tab" type="button" data-target="clientes" aria-selected="false">
       Clientes
     </button>
-    <button class="tab" role="tab" type="button" data-target="servicos" aria-selected="false">
+    <button class="tab" type="button" data-target="servicos" aria-selected="false">
       Serviços
     </button>
-    <button class="tab" role="tab" type="button" data-target="historico" aria-selected="false">
+    <button class="tab" type="button" data-target="historico" aria-selected="false">
       Histórico
     </button>
-    <button class="tab" role="tab" type="button" data-target="calendario" aria-selected="false">
+    <button class="tab" type="button" data-target="calendario" aria-selected="false">
       Calendário
     </button>
-    <button class="tab" role="tab" type="button" data-target="fechamento" aria-selected="false">
+    <button class="tab" type="button" data-target="fechamento" aria-selected="false">
       Fechamento
+    </button>
+    <button class="tab" type="button" data-target="configuracoes" aria-selected="false">
+      Configurações
     </button>
   </nav>
 
@@ -180,7 +185,7 @@
             </div>
 
             <div class="form-actions">
-              <button class="button button--primary" type="submit">
+              <button class="button button--primary botao-destaque" type="submit">
                 Adicionar à fila
               </button>
 
@@ -519,11 +524,71 @@
         <div id="closureStatus" class="closure-status"></div>
       </section>
     </section>
+
+    <section id="configuracoes" class="view" aria-labelledby="titulo-configuracoes">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Personalização</p>
+          <h2 id="titulo-configuracoes">Configurações do profissional</h2>
+        </div>
+      </div>
+
+      <div class="layout-grid">
+        <section class="panel">
+          <h3>Foto do profissional</h3>
+          <div class="profile-settings">
+            <img id="professionalPhotoPreview" class="professional-photo-preview" src="./assets/images/professional-placeholder.svg" alt="Prévia da foto do profissional" />
+            <div class="profile-settings__controls">
+              <div class="field">
+                <label for="professionalPhotoInput">Selecionar foto</label>
+                <input id="professionalPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" />
+              </div>
+              <p class="muted">JPG, PNG ou WebP. Limite de 1 MB.</p>
+              <button class="button button--danger-outline" id="removeProfessionalPhotoButton" type="button">Remover foto</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Som do alerta</h3>
+          <form id="soundSettingsForm" class="form-grid">
+            <div class="field">
+              <label for="alertSoundType">Tipo de som</label>
+              <select id="alertSoundType">
+                <option value="soft">Bip suave</option>
+                <option value="double">Bip duplo</option>
+                <option value="bell">Campainha digital</option>
+                <option value="strong">Alerta forte</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="alertVolume">Volume: <span id="alertVolumeValue">70%</span></label>
+              <input id="alertVolume" type="range" min="0" max="100" step="5" value="70" />
+            </div>
+
+            <div class="field field--full checkbox-field">
+              <input id="vibrationOnly" type="checkbox" />
+              <label for="vibrationOnly">Somente vibrar</label>
+            </div>
+
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Salvar configurações</button>
+              <button class="button button--secondary" id="testSoundButton" type="button">Testar som</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </section>
+
   </main>
 
   <footer class="app-footer">
     <p>Barbearia Resenha Boa — Desde 2017</p>
-    <p class="developer-credit">Desenvolvido por <strong>Edivandro Lima</strong></p>
+    <div class="developer-signature">
+      <img src="./assets/images/edivandro-lima.jpg" alt="Edivandro Lima, desenvolvedor do sistema" class="developer-photo" />
+      <p class="developer-credit">Desenvolvido por <strong>Edivandro Lima</strong></p>
+    </div>
   </footer>
 
 
@@ -557,6 +622,32 @@
       <div class="dialog__actions">
         <button class="button button--primary" type="submit">Adicionar à fila</button>
         <button class="button button--secondary" id="cancelKnownCustomerQueueButton" type="button">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="serviceDurationDialog" class="dialog">
+    <form id="serviceDurationForm" class="dialog__content">
+      <input id="serviceDurationCustomerId" type="hidden" />
+      <div>
+        <p class="section-heading__eyebrow">Tempo previsto</p>
+        <h2 id="serviceDurationTitle">Definir duração</h2>
+        <p class="muted">Escolha quanto tempo pretende ficar com este cliente.</p>
+      </div>
+      <div class="duration-options" role="group" aria-label="Duração prevista">
+        <button class="duration-option" type="button" data-minutes="15">15 min</button>
+        <button class="duration-option is-selected" type="button" data-minutes="30">30 min</button>
+        <button class="duration-option" type="button" data-minutes="45">45 min</button>
+        <button class="duration-option" type="button" data-minutes="60">60 min</button>
+      </div>
+      <div class="field">
+        <label for="serviceDurationMinutes">Tempo personalizado (minutos)</label>
+        <input id="serviceDurationMinutes" type="number" min="1" max="240" step="1" value="30" required />
+      </div>
+      <div class="dialog__actions">
+        <button class="button button--primary" type="submit">Iniciar atendimento</button>
+        <button class="button button--secondary" id="cancelServiceDurationButton" type="button">Cancelar</button>
       </div>
     </form>
   </dialog>
