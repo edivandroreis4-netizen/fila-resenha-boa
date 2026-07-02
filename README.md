@@ -204,3 +204,101 @@ assets/images/edivandro-lima.jpg
 ```
 
 A imagem foi recortada em formato quadrado e otimizada para carregamento rápido.
+
+
+## Cabeçalho e configurações reorganizados
+
+- Logotipo da barbearia à esquerda.
+- Foto do profissional ao lado do logotipo.
+- Nome do profissional com maior destaque.
+- Removido o botão grande **Alterar profissional** do cabeçalho.
+- Edição do nome movida para **Configurações do profissional**.
+- Edição e remoção da foto permanecem apenas em Configurações.
+- Cabeçalho mobile mais compacto.
+- Texto do limite da foto atualizado para 5 MB.
+
+
+## Dashboard premium
+
+A tela inicial foi redesenhada com aparência de aplicativo comercial:
+
+- saudação personalizada;
+- resumo inteligente do dia;
+- quatro indicadores principais;
+- próximo cliente em destaque;
+- atendimento atual com cronômetro e barra de progresso;
+- gráfico dos últimos sete dias;
+- recebimentos por forma de pagamento;
+- ranking de serviços;
+- clientes frequentes;
+- formulário rápido para adicionar à fila;
+- navegação inferior no celular;
+- identidade visual da Barbearia Resenha Boa;
+- rodapé preservado com a foto e autoria de Edivandro Lima.
+
+A edição do nome e da foto do profissional permanece somente em **Configurações**.
+
+
+## Correção para nomes longos no celular
+
+- O nome do cliente agora pode ocupar toda a largura do card.
+- Nomes longos quebram para a linha seguinte sem serem cortados.
+- No modo vertical, o selo de status aparece abaixo do nome.
+- O comportamento no computador permanece organizado.
+
+
+## Correções mobile adicionais
+
+- Calendário voltou a ficar acessível pelo botão **Mais** na barra inferior.
+- Menu **Mais** reúne Serviços, Calendário, Fechamento e Configurações.
+- Menu **Mais ações** agora abre dentro da largura da tela, sem corte lateral.
+- Cursores de clique foram aplicados aos elementos interativos no computador.
+- Foto do profissional ficou no canto esquerdo e o logotipo da barbearia no canto direito.
+- Cache da PWA atualizado.
+
+
+## Ajustes no dashboard mobile
+
+- O logotipo da Barbearia Resenha Boa permanece visível no canto direito do card de saudação.
+- O logotipo recebeu tamanho adaptativo para telas menores.
+- O menu **Mais** agora possui uma opção explícita **Recolher menu**.
+- O botão **X**, o toque fora da aba e o próprio botão **Mais** continuam fechando o menu.
+
+
+## Correção do menu Mais ações
+
+- Adicionado o botão **Voltar** dentro do menu de ações de cada cliente.
+- O botão recolhe imediatamente a aba no celular e no computador.
+- Tocar fora do menu também fecha a aba.
+- A tecla `Esc` fecha o menu no computador.
+- Ao abrir um novo menu, qualquer outro menu de ações aberto é recolhido.
+
+
+## Refinamento do card de saudação
+
+- Mantido somente o logotipo principal no cabeçalho.
+- Removido o logotipo destacado do card de saudação.
+- Adicionada uma marca-d'água maior e parcialmente cortada no canto.
+- A marca-d'água utiliza baixa opacidade, sem borda branca e sem competir com o conteúdo.
+- O comportamento foi ajustado separadamente para computador e celular.
+
+
+## Feedback de salvamento e retorno ao atendimento
+
+- Ao salvar as configurações de som, o botão muda temporariamente para **Configurações salvas**.
+- Uma confirmação leve aparece abaixo do formulário.
+- O formulário recebe uma animação discreta, sem interromper o uso.
+- As configurações são gravadas imediatamente no `localStorage`.
+- Ao iniciar um atendimento, o aplicativo volta automaticamente para a tela **Fila**.
+- O cliente em atendimento é levado para a área visível e recebe um destaque temporário.
+- Animações respeitam a preferência de movimento reduzido do aparelho.
+
+
+## Correção do início de atendimento
+
+- O botão **Iniciar atendimento** da tela de tempo previsto agora executa a ação diretamente.
+- Removida a segunda confirmação que podia ficar escondida atrás da janela de duração.
+- Depois de iniciar, o aplicativo abre automaticamente a tela **Início**.
+- O card **Atendimento atual** é centralizado e recebe um destaque discreto.
+- O botão apresenta o texto **Iniciando...** para evitar dúvidas e cliques repetidos.
+- O cronômetro e o tempo restante continuam funcionando normalmente.

@@ -1,4 +1,4 @@
-const CACHE_NAME = "fila-resenha-boa-v14-foto-edivandro-tempo";
+const CACHE_NAME = "fila-resenha-boa-dashboard-premium-inicio-automatico-v1";
 const APP_ASSETS = [
   "./",
   "./index.html",

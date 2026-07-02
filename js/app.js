@@ -4,7 +4,8 @@ const STORAGE_KEYS = {
   history: "resenha-boa-history-v13",
   professional: "resenha-boa-professional-v13",
   closures: "resenha-boa-closures-v13",
-  knownCustomers: "resenha-boa-known-customers-v14"
+  knownCustomers: "resenha-boa-known-customers-v14",
+  alertSettings: "resenha-boa-alert-settings-v14"
 };
 
 const DEFAULT_SERVICES = [
@@ -35,6 +36,29 @@ const elements = {
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
   todayLabel: document.querySelector("#todayLabel"),
+
+  premiumGreeting: document.querySelector("#premiumGreeting"),
+  premiumHeroSummary: document.querySelector("#premiumHeroSummary"),
+  premiumCurrentCustomer: document.querySelector("#premiumCurrentCustomer"),
+  premiumCurrentService: document.querySelector("#premiumCurrentService"),
+  premiumCurrentBadge: document.querySelector("#premiumCurrentBadge"),
+  premiumRemainingTime: document.querySelector("#premiumRemainingTime"),
+  premiumTimerCaption: document.querySelector("#premiumTimerCaption"),
+  premiumProgressBar: document.querySelector("#premiumProgressBar"),
+  premiumWeekTotal: document.querySelector("#premiumWeekTotal"),
+  premiumWeeklyChart: document.querySelector("#premiumWeeklyChart"),
+  premiumPayments: document.querySelector("#premiumPayments"),
+  premiumTopServices: document.querySelector("#premiumTopServices"),
+  premiumFrequentCustomers: document.querySelector("#premiumFrequentCustomers"),
+  mobileNavItems: document.querySelectorAll(".mobile-app-nav__item"),
+  mobileMoreButton: document.querySelector("#mobileMoreButton"),
+  mobileMoreMenu: document.querySelector("#mobileMoreMenu"),
+  mobileMoreBackdrop: document.querySelector("#mobileMoreBackdrop"),
+  mobileMoreClose: document.querySelector("#mobileMoreClose"),
+  mobileMoreCollapse: document.querySelector("#mobileMoreCollapse"),
+  mobileMoreTargetButtons: document.querySelectorAll("[data-mobile-more-target]"),
+  dashboardTargetButtons: document.querySelectorAll("[data-dashboard-target]"),
+
 
   customerForm: document.querySelector("#customerForm"),
   customerName: document.querySelector("#customerName"),
@@ -82,6 +106,7 @@ const elements = {
   serviceDurationCustomerId: document.querySelector("#serviceDurationCustomerId"),
   serviceDurationTitle: document.querySelector("#serviceDurationTitle"),
   serviceDurationMinutes: document.querySelector("#serviceDurationMinutes"),
+  confirmStartServiceButton: document.querySelector("#confirmStartServiceButton"),
   cancelServiceDurationButton: document.querySelector("#cancelServiceDurationButton"),
   durationOptionButtons: document.querySelectorAll(".duration-option"),
 
@@ -107,12 +132,15 @@ const elements = {
   alertVolumeValue: document.querySelector("#alertVolumeValue"),
   vibrationOnly: document.querySelector("#vibrationOnly"),
   soundSettingsForm: document.querySelector("#soundSettingsForm"),
+  saveSoundSettingsButton: document.querySelector("#saveSoundSettingsButton"),
+  soundSettingsFeedback: document.querySelector("#soundSettingsFeedback"),
   testSoundButton: document.querySelector("#testSoundButton"),
-  editProfessionalButton: document.querySelector("#editProfessionalButton"),
   professionalDialog: document.querySelector("#professionalDialog"),
   professionalForm: document.querySelector("#professionalForm"),
   professionalName: document.querySelector("#professionalName"),
   cancelProfessionalButton: document.querySelector("#cancelProfessionalButton"),
+  professionalSettingsForm: document.querySelector("#professionalSettingsForm"),
+  professionalSettingsName: document.querySelector("#professionalSettingsName"),
 
   editCustomerDialog: document.querySelector("#editCustomerDialog"),
   editCustomerForm: document.querySelector("#editCustomerForm"),
@@ -404,9 +432,9 @@ function renderProfessional() {
 
   elements.professionalHeader.textContent = name;
   elements.reportProfessional.textContent = `Profissional: ${name}`;
-
   elements.professionalPhoto.src = photo;
   elements.professionalPhotoPreview.src = photo;
+  elements.professionalSettingsName.value = professional.name || "";
 
   elements.alertSoundType.value = alertSettings.soundType;
   elements.alertVolume.value = alertSettings.volume;
@@ -561,7 +589,11 @@ function customerCard(customer, index) {
     `;
 
   return `
-    <article class="customer-card">
+    <article
+      class="customer-card"
+      data-customer-id="${customer.id}"
+      data-customer-status="${customer.status}"
+    >
       <div class="card-topline">
         <div>
           <p class="muted">Posição ${index + 1}</p>
@@ -638,6 +670,16 @@ function customerCard(customer, index) {
 
             <button class="button button--danger-outline" type="button" data-action="remove" data-id="${customer.id}">
               Remover
+            </button>
+
+            <button
+              class="button button--secondary more-actions__close"
+              type="button"
+              data-action="close-actions"
+              data-id="${customer.id}"
+            >
+              <span aria-hidden="true">←</span>
+              Voltar
             </button>
           </div>
         </details>
@@ -1090,6 +1132,186 @@ function openKnownCustomerQueue(customer) {
   elements.knownCustomerQueueDialog.showModal();
 }
 
+
+function greetingForHour(hour) {
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+function startOfLocalDay(date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function renderPremiumDashboard() {
+  const now = new Date();
+  const firstName = professional.name?.trim()?.split(/\s+/)[0] || "profissional";
+  const completedToday = todayHistory();
+  const revenueToday = completedToday.reduce((sum, item) => sum + Number(item.value || 0), 0);
+  const waiting = queue.filter(item => item.status !== "em_atendimento");
+  const current = queue.find(item => item.status === "em_atendimento");
+
+  elements.premiumGreeting.textContent = `${greetingForHour(now.getHours())}, ${firstName}`;
+  elements.premiumHeroSummary.textContent = completedToday.length
+    ? `Hoje você já realizou ${completedToday.length} atendimento${completedToday.length === 1 ? "" : "s"} e faturou ${formatMoney(revenueToday)}.`
+    : waiting.length
+      ? `Você tem ${waiting.length} cliente${waiting.length === 1 ? "" : "s"} aguardando atendimento.`
+      : "Sua agenda está pronta. Adicione o primeiro cliente para começar o dia.";
+
+  if (current) {
+    const remaining = remainingSeconds(current);
+    const plannedSeconds = Math.max(60, Number(current.plannedDurationMinutes || 30) * 60);
+    const elapsed = current.startedAt ? durationSeconds(current.startedAt) : 0;
+    const progress = Math.min(100, Math.max(0, (elapsed / plannedSeconds) * 100));
+
+    elements.premiumCurrentCustomer.textContent = current.name;
+    elements.premiumCurrentService.textContent = `${current.serviceName} • ${formatMoney(current.value)}`;
+    elements.premiumCurrentBadge.textContent = remaining <= 0 ? "Tempo excedido" : "Em atendimento";
+    elements.premiumCurrentBadge.classList.add("is-live");
+    elements.premiumRemainingTime.textContent = formatDuration(Math.abs(remaining));
+    elements.premiumTimerCaption.textContent = remaining <= 0 ? "Tempo excedido" : "Tempo restante";
+    elements.premiumProgressBar.style.width = `${progress}%`;
+  } else {
+    elements.premiumCurrentCustomer.textContent = "Nenhum atendimento iniciado";
+    elements.premiumCurrentService.textContent = "O cronômetro aparecerá aqui.";
+    elements.premiumCurrentBadge.textContent = "Aguardando";
+    elements.premiumCurrentBadge.classList.remove("is-live");
+    elements.premiumRemainingTime.textContent = "00:00";
+    elements.premiumTimerCaption.textContent = "Tempo restante";
+    elements.premiumProgressBar.style.width = "0%";
+  }
+
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = startOfLocalDay(now);
+    date.setDate(date.getDate() - (6 - index));
+    const key = localDateKey(date);
+    const count = history.filter(item => localDateKey(item.finishedAt) === key).length;
+    return {
+      date,
+      count,
+      label: new Intl.DateTimeFormat("pt-BR", { weekday: "short" })
+        .format(date)
+        .replace(".", "")
+    };
+  });
+
+  const maxCount = Math.max(1, ...weekDays.map(day => day.count));
+  const weekTotal = weekDays.reduce((sum, day) => sum + day.count, 0);
+  elements.premiumWeekTotal.textContent =
+    `${weekTotal} atendimento${weekTotal === 1 ? "" : "s"}`;
+
+  elements.premiumWeeklyChart.innerHTML = weekDays.map(day => {
+    const height = day.count ? Math.max(10, (day.count / maxCount) * 100) : 3;
+    return `
+      <div class="premium-chart__item" title="${day.count} atendimento(s)">
+        <div class="premium-chart__track">
+          <span class="premium-chart__bar" style="height:${height}%"></span>
+        </div>
+        <span class="premium-chart__value">${day.count}</span>
+        <span class="premium-chart__label">${escapeHtml(day.label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  const paymentTotals = completedToday.reduce((summary, item) => {
+    const payment = item.payment || "Não informado";
+    summary[payment] = (summary[payment] || 0) + Number(item.value || 0);
+    return summary;
+  }, {});
+
+  const paymentEntries = Object.entries(paymentTotals).sort((a, b) => b[1] - a[1]);
+  elements.premiumPayments.innerHTML = paymentEntries.length
+    ? paymentEntries.map(([payment, total]) => `
+        <div class="premium-summary-row">
+          <span>${escapeHtml(payment)}</span>
+          <strong>${formatMoney(total)}</strong>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Nenhum recebimento registrado hoje.</div>';
+
+  const recentLimit = startOfLocalDay(now);
+  recentLimit.setDate(recentLimit.getDate() - 29);
+  const recentItems = history.filter(item => new Date(item.finishedAt) >= recentLimit);
+
+  const serviceRanking = recentItems.reduce((summary, item) => {
+    const name = item.serviceName || "Serviço";
+    summary[name] = (summary[name] || 0) + 1;
+    return summary;
+  }, {});
+
+  const topServices = Object.entries(serviceRanking)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  elements.premiumTopServices.innerHTML = topServices.length
+    ? topServices.map(([name, count], index) => `
+        <div class="premium-ranking__row">
+          <span><b class="premium-ranking__position">${index + 1}</b>${escapeHtml(name)}</span>
+          <strong>${count}x</strong>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Os serviços mais realizados aparecerão aqui.</div>';
+
+  const customerRanking = history.reduce((summary, item) => {
+    const key = (item.phone || item.name || "").toLowerCase();
+    if (!key) return summary;
+    const currentItem = summary[key] || { name: item.name, count: 0 };
+    currentItem.count += 1;
+    currentItem.name = item.name || currentItem.name;
+    summary[key] = currentItem;
+    return summary;
+  }, {});
+
+  const topCustomers = Object.values(customerRanking)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  elements.premiumFrequentCustomers.innerHTML = topCustomers.length
+    ? topCustomers.map((customer, index) => `
+        <div class="premium-ranking__row">
+          <span><b class="premium-ranking__position">${index + 1}</b>${escapeHtml(customer.name)}</span>
+          <strong>${customer.count} visitas</strong>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Os clientes frequentes aparecerão aqui.</div>';
+}
+
+function closeMobileMoreMenu() {
+  elements.mobileMoreMenu.hidden = true;
+  elements.mobileMoreBackdrop.hidden = true;
+  elements.mobileMoreButton.setAttribute("aria-expanded", "false");
+}
+
+function openMobileMoreMenu() {
+  elements.mobileMoreMenu.hidden = false;
+  elements.mobileMoreBackdrop.hidden = false;
+  elements.mobileMoreButton.setAttribute("aria-expanded", "true");
+}
+
+function activateView(targetId) {
+  elements.tabs.forEach(tab => {
+    const active = tab.dataset.target === targetId;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+
+  elements.views.forEach(view => {
+    view.classList.toggle("is-visible", view.id === targetId);
+  });
+
+  const moreTargets = ["servicos", "calendario", "fechamento", "configuracoes"];
+  elements.mobileNavItems.forEach(item => {
+    const directMatch = item.dataset.mobileTarget === targetId;
+    const moreMatch = item.id === "mobileMoreButton" && moreTargets.includes(targetId);
+    item.classList.toggle("is-active", directMatch || moreMatch);
+  });
+
+  closeMobileMoreMenu();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function renderAll() {
   renderProfessional();
   renderServiceOptions();
@@ -1098,6 +1320,7 @@ function renderAll() {
   renderQueue();
   renderHistory();
   renderMetrics();
+  renderPremiumDashboard();
   renderMonthlySummary();
   renderCalendar();
   renderReport();
@@ -1144,46 +1367,71 @@ async function startService(customer, plannedMinutes = null) {
   );
 
   if (anotherInService) {
+    if (elements.serviceDurationDialog.open) {
+      elements.serviceDurationDialog.close();
+    }
+
     await Swal.fire({
       title: "Já existe um atendimento em andamento",
       text: `${anotherInService.name} está sendo atendido no momento.`,
       icon: "warning",
       confirmButtonText: "Entendi"
     });
-    return;
+
+    return false;
   }
 
   if (plannedMinutes === null) {
     openServiceDurationDialog(customer);
-    return;
+    return false;
   }
 
   const minutes = Number(plannedMinutes);
 
   if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) {
     showToast("Informe um tempo entre 1 e 240 minutos.");
-    return;
+    return false;
   }
 
-  const confirmed = await confirmAction({
-    title: "Iniciar atendimento?",
-    html: `<strong>${escapeHtml(customer.name)}</strong><br>${escapeHtml(customer.serviceName)} — ${formatMoney(customer.value)}<br><strong>Tempo previsto:</strong> ${minutes} minutos`,
-    confirmText: "Iniciar",
-    icon: "question"
-  });
-
-  if (!confirmed) return;
-
   const startedAt = new Date();
+
   customer.status = "em_atendimento";
   customer.startedAt = startedAt.toISOString();
   customer.plannedDurationMinutes = minutes;
-  customer.expectedEndAt = new Date(startedAt.getTime() + minutes * 60000).toISOString();
+  customer.expectedEndAt = new Date(
+    startedAt.getTime() + minutes * 60000
+  ).toISOString();
 
   alertedCustomers.delete(customer.id);
-  elements.serviceDurationDialog.close();
+
+  if (elements.serviceDurationDialog.open) {
+    elements.serviceDurationDialog.close();
+  }
+
   renderAll();
-  showToast("Atendimento e contagem regressiva iniciados.");
+  activateView("painel");
+
+  window.setTimeout(() => {
+    const serviceCard = document.querySelector(".premium-card--service");
+
+    if (!serviceCard) return;
+
+    serviceCard.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+
+    serviceCard.classList.remove("premium-card--service-started");
+    void serviceCard.offsetWidth;
+    serviceCard.classList.add("premium-card--service-started");
+
+    window.setTimeout(() => {
+      serviceCard.classList.remove("premium-card--service-started");
+    }, 1800);
+  }, 220);
+
+  showToast("Atendimento iniciado. O painel foi aberto automaticamente.");
+  return true;
 }
 
 async function finishCustomer(customer) {
@@ -1336,6 +1584,11 @@ elements.queueList.addEventListener("click", async event => {
 
   if (!button) return;
 
+  if (button.dataset.action === "close-actions") {
+    button.closest("details.more-actions")?.removeAttribute("open");
+    return;
+  }
+
   const customer = queue.find(item => item.id === button.dataset.id);
 
   if (!customer) return;
@@ -1428,9 +1681,30 @@ elements.serviceDurationMinutes.addEventListener("input", () => {
 
 elements.serviceDurationForm.addEventListener("submit", async event => {
   event.preventDefault();
-  const customer = queue.find(item => item.id === elements.serviceDurationCustomerId.value);
-  if (!customer) return showToast("Cliente não encontrado.");
-  await startService(customer, elements.serviceDurationMinutes.value);
+
+  const customer = queue.find(
+    item => item.id === elements.serviceDurationCustomerId.value
+  );
+
+  if (!customer) {
+    showToast("Cliente não encontrado.");
+    return;
+  }
+
+  const button = elements.confirmStartServiceButton;
+  const label = button.querySelector(".service-start-confirm-button__label");
+
+  button.disabled = true;
+  button.classList.add("is-loading");
+  label.textContent = "Iniciando...";
+
+  try {
+    await startService(customer, elements.serviceDurationMinutes.value);
+  } finally {
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    label.textContent = "Iniciar atendimento";
+  }
 });
 
 elements.cancelServiceDurationButton.addEventListener("click", () => {
@@ -1704,18 +1978,6 @@ elements.clearHistoryButton.addEventListener("click", async () => {
   showToast("Histórico apagado.");
 });
 
-elements.editProfessionalButton.addEventListener("click", async () => {
-  const confirmed = await confirmAction({
-    title: "Alterar o profissional?",
-    html: "Deseja realmente alterar o profissional deste aparelho?",
-    confirmText: "Alterar",
-    icon: "warning"
-  });
-
-  if (confirmed) {
-    openProfessionalDialog(false);
-  }
-});
 
 elements.cancelProfessionalButton.addEventListener("click", () => {
   elements.professionalDialog.close();
@@ -1838,6 +2100,27 @@ elements.closeDayButton.addEventListener("click", async () => {
 });
 
 
+elements.professionalSettingsForm.addEventListener("submit", event => {
+  event.preventDefault();
+
+  const name = elements.professionalSettingsName.value.trim();
+
+  if (name.length < 2) {
+    showToast("Informe um nome válido.");
+    elements.professionalSettingsName.focus();
+    return;
+  }
+
+  professional = {
+    ...professional,
+    name
+  };
+
+  saveAll();
+  renderAll();
+  showToast("Nome do profissional atualizado.");
+});
+
 elements.professionalPhotoInput.addEventListener("change", async event => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -1895,7 +2178,46 @@ elements.soundSettingsForm.addEventListener("submit", event => {
     vibrationOnly: elements.vibrationOnly.checked
   };
 
+  saveAll();
   renderAll();
+
+  const button = elements.saveSoundSettingsButton;
+  const label = button.querySelector(".settings-save-button__label");
+
+  clearTimeout(elements.soundSettingsForm.feedbackTimer);
+  clearTimeout(elements.soundSettingsForm.buttonTimer);
+
+  elements.soundSettingsForm.classList.remove("sound-settings--saved");
+  button.classList.remove("is-saved");
+  void elements.soundSettingsForm.offsetWidth;
+
+  elements.soundSettingsForm.classList.add("sound-settings--saved");
+  button.classList.add("is-saved");
+  label.textContent = "Configurações salvas";
+
+  elements.soundSettingsFeedback.hidden = false;
+  elements.soundSettingsFeedback.classList.remove("is-visible");
+  void elements.soundSettingsFeedback.offsetWidth;
+  elements.soundSettingsFeedback.classList.add("is-visible");
+
+  if ("vibrate" in navigator) {
+    navigator.vibrate(45);
+  }
+
+  elements.soundSettingsForm.feedbackTimer = window.setTimeout(() => {
+    elements.soundSettingsFeedback.classList.remove("is-visible");
+
+    window.setTimeout(() => {
+      elements.soundSettingsFeedback.hidden = true;
+    }, 250);
+  }, 2400);
+
+  elements.soundSettingsForm.buttonTimer = window.setTimeout(() => {
+    button.classList.remove("is-saved");
+    label.textContent = "Salvar configurações";
+    elements.soundSettingsForm.classList.remove("sound-settings--saved");
+  }, 2200);
+
   showToast("Configurações de alerta salvas.");
 });
 
@@ -1935,6 +2257,7 @@ if ("serviceWorker" in navigator) {
 }
 
 setInterval(() => {
+  renderPremiumDashboard();
   document.querySelectorAll("[data-live-wait]").forEach(element => {
     const customer = queue.find(item => item.id === element.dataset.liveWait);
 
@@ -1979,6 +2302,63 @@ setInterval(() => {
       `${next.serviceName} • ${formatMoney(next.value)} • espera ${formatDuration(durationSeconds(next.createdAt))}`;
   }
 }, 1000);
+
+
+elements.dashboardTargetButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    activateView(button.dataset.dashboardTarget);
+  });
+});
+
+elements.mobileNavItems.forEach(item => {
+  item.addEventListener("click", () => {
+    activateView(item.dataset.mobileTarget);
+  });
+});
+
+elements.mobileMoreButton.addEventListener("click", () => {
+  const expanded = elements.mobileMoreButton.getAttribute("aria-expanded") === "true";
+  expanded ? closeMobileMoreMenu() : openMobileMoreMenu();
+});
+
+elements.mobileMoreClose.addEventListener("click", closeMobileMoreMenu);
+elements.mobileMoreCollapse.addEventListener("click", closeMobileMoreMenu);
+elements.mobileMoreBackdrop.addEventListener("click", closeMobileMoreMenu);
+
+elements.mobileMoreTargetButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    activateView(button.dataset.mobileMoreTarget);
+  });
+});
+
+
+document.addEventListener("toggle", event => {
+  const details = event.target;
+
+  if (!(details instanceof HTMLDetailsElement) || !details.matches(".more-actions") || !details.open) {
+    return;
+  }
+
+  document.querySelectorAll("details.more-actions[open]").forEach(item => {
+    if (item !== details) item.removeAttribute("open");
+  });
+}, true);
+
+document.addEventListener("click", event => {
+  document.querySelectorAll("details.more-actions[open]").forEach(details => {
+    if (!details.contains(event.target)) {
+      details.removeAttribute("open");
+    }
+  });
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+
+  document.querySelectorAll("details.more-actions[open]").forEach(details => {
+    details.removeAttribute("open");
+  });
+});
 
 renderAll();
 

@@ -22,29 +22,25 @@
 
   <header class="app-header">
     <div class="brand">
-      <img
-        src="./assets/images/logo-resenha-boa.jpg"
-        alt="Logotipo da Barbearia Resenha Boa"
-        class="brand__logo"
-      />
-
       <img id="professionalPhoto" class="professional-photo" src="./assets/images/professional-placeholder.svg" alt="Foto do profissional" />
       <div class="brand__content">
         <p class="brand__eyebrow">Barbearia Resenha Boa</p>
         <h1>Painel de atendimento</h1>
         <p class="brand__professional">
-          Profissional:
+          Profissional
           <strong id="professionalHeader">não configurado</strong>
         </p>
       </div>
+
+      <img
+        src="./assets/images/logo-resenha-boa.jpg"
+        alt="Logotipo da Barbearia Resenha Boa"
+        class="brand__logo"
+      />
     </div>
 
     <div class="header-actions">
-      <button class="button button--secondary" id="editProfessionalButton" type="button">
-        Alterar profissional
-      </button>
-
-      <button class="button button--secondary" id="installAppButton" type="button" hidden>
+<button class="button button--secondary" id="installAppButton" type="button" hidden>
         Instalar aplicativo
       </button>
     </div>
@@ -78,142 +74,210 @@
   </nav>
 
   <main id="conteudo" class="container">
-    <section id="painel" class="view is-visible" aria-labelledby="titulo-painel">
-      <div class="section-heading">
+
+    <section id="painel" class="view is-visible premium-dashboard" aria-labelledby="titulo-painel">
+      <section class="premium-hero">
+        <div class="premium-hero__content">
+          <p id="premiumGreeting" class="premium-hero__eyebrow">Olá</p>
+          <h2 id="titulo-painel">Seu dia na barbearia</h2>
+          <p id="premiumHeroSummary" class="premium-hero__summary">
+            Acompanhe a fila, o atendimento e o faturamento em tempo real.
+          </p>
+
+          <div class="premium-hero__actions">
+            <button class="button premium-button premium-button--light" type="button" data-dashboard-target="fila">
+              Ver fila
+            </button>
+            <button class="button premium-button premium-button--ghost" type="button" data-dashboard-target="fechamento">
+              Fechamento
+            </button>
+          </div>
+        </div>
+</section>
+
+      <div class="premium-section-heading">
         <div>
           <p class="section-heading__eyebrow">Visão geral</p>
-          <h2 id="titulo-painel">Resumo do dia</h2>
+          <h2>Resumo de hoje</h2>
         </div>
         <p id="todayLabel" class="date-label"></p>
       </div>
 
-      <div class="metrics" aria-label="Indicadores do dia">
-        <article class="metric-card">
-          <span>Na fila</span>
-          <strong id="metricQueue">0</strong>
+      <div class="premium-metrics" aria-label="Indicadores do dia">
+        <article class="premium-metric premium-metric--gold">
+          <span class="premium-metric__icon" aria-hidden="true">⌛</span>
+          <div>
+            <span>Na fila</span>
+            <strong id="metricQueue">0</strong>
+          </div>
         </article>
 
-        <article class="metric-card">
-          <span>Em atendimento</span>
-          <strong id="metricInService">0</strong>
+        <article class="premium-metric premium-metric--dark">
+          <span class="premium-metric__icon" aria-hidden="true">✂</span>
+          <div>
+            <span>Em atendimento</span>
+            <strong id="metricInService">0</strong>
+          </div>
         </article>
 
-        <article class="metric-card">
-          <span>Atendidos hoje</span>
-          <strong id="metricServed">0</strong>
+        <article class="premium-metric premium-metric--green">
+          <span class="premium-metric__icon" aria-hidden="true">✓</span>
+          <div>
+            <span>Atendidos hoje</span>
+            <strong id="metricServed">0</strong>
+          </div>
         </article>
 
-        <article class="metric-card">
-          <span>Faturamento</span>
-          <strong id="metricRevenue">R$ 0,00</strong>
-        </article>
-
-        <article class="metric-card">
-          <span>Ticket médio</span>
-          <strong id="metricAverage">R$ 0,00</strong>
-        </article>
-
-        <article class="metric-card">
-          <span>Tempo médio</span>
-          <strong id="metricAverageTime">00:00</strong>
+        <article class="premium-metric premium-metric--light">
+          <span class="premium-metric__icon" aria-hidden="true">R$</span>
+          <div>
+            <span>Faturamento</span>
+            <strong id="metricRevenue">R$ 0,00</strong>
+          </div>
         </article>
       </div>
 
-      <div class="layout-grid">
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="section-heading__eyebrow">Cadastro</p>
-              <h3>Adicionar cliente</h3>
-            </div>
-          </div>
-
-          <form id="customerForm" class="form-grid">
-            <div class="field">
-              <label for="customerName">Nome do cliente</label>
-              <input
-                id="customerName"
-                name="customerName"
-                type="text"
-                minlength="2"
-                maxlength="80"
-                autocomplete="name"
-                required
-              />
-            </div>
-
-            <div class="field">
-              <label for="customerPhone">WhatsApp</label>
-              <input
-                id="customerPhone"
-                name="customerPhone"
-                type="tel"
-                inputmode="numeric"
-                placeholder="(71) 99999-9999"
-                maxlength="15"
-                required
-              />
-            </div>
-
-            <div class="field">
-              <label for="customerService">Serviço</label>
-              <select id="customerService" name="customerService" required>
-                <option value="">Selecione</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="customerPayment">Forma de pagamento</label>
-              <select id="customerPayment" name="customerPayment" required>
-                <option value="">Selecione</option>
-                <option value="Pix">Pix</option>
-                <option value="Dinheiro">Dinheiro</option>
-                <option value="Débito">Cartão de débito</option>
-                <option value="Crédito">Cartão de crédito</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="customerValue">Valor do serviço</label>
-              <input
-                id="customerValue"
-                name="customerValue"
-                type="text"
-                readonly
-                aria-readonly="true"
-              />
-            </div>
-
-            <div class="form-actions">
-              <button class="button button--primary botao-destaque" type="submit">
-                Adicionar à fila
-              </button>
-
-              <button class="button button--secondary" type="reset">
-                Limpar
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section class="panel">
-          <div class="panel__header panel__header--actions">
+      <div class="premium-dashboard-grid">
+        <section class="premium-card premium-card--next">
+          <div class="premium-card__header">
             <div>
               <p class="section-heading__eyebrow">Próximo atendimento</p>
               <h3 id="nextCustomerName">Fila vazia</h3>
-              <p id="nextCustomerDetails" class="muted">
-                Cadastre um cliente para começar.
-              </p>
+              <p id="nextCustomerDetails" class="muted">Cadastre um cliente para começar.</p>
             </div>
-
-            <button class="button button--accent" id="callNextButton" type="button">
-              Chamar próximo
-            </button>
+            <span class="premium-status-dot" aria-hidden="true"></span>
           </div>
 
-          <div id="quickQueue" class="compact-list" aria-live="polite"></div>
+          <button class="button button--accent premium-call-button" id="callNextButton" type="button">
+            Chamar próximo cliente
+          </button>
+
+          <div id="quickQueue" class="premium-queue-preview" aria-live="polite"></div>
+        </section>
+
+        <section class="premium-card premium-card--service">
+          <div class="premium-card__header">
+            <div>
+              <p class="section-heading__eyebrow">Atendimento atual</p>
+              <h3 id="premiumCurrentCustomer">Nenhum atendimento iniciado</h3>
+              <p id="premiumCurrentService" class="muted">O cronômetro aparecerá aqui.</p>
+            </div>
+            <span id="premiumCurrentBadge" class="premium-live-badge">Aguardando</span>
+          </div>
+
+          <div class="premium-timer">
+            <strong id="premiumRemainingTime">00:00</strong>
+            <span id="premiumTimerCaption">Tempo restante</span>
+          </div>
+
+          <div class="premium-progress" aria-hidden="true">
+            <span id="premiumProgressBar"></span>
+          </div>
+
+          <button class="button button--secondary" type="button" data-dashboard-target="fila">
+            Abrir atendimento
+          </button>
         </section>
       </div>
+
+      <div class="premium-dashboard-grid premium-dashboard-grid--analytics">
+        <section class="premium-card premium-card--wide">
+          <div class="premium-card__header">
+            <div>
+              <p class="section-heading__eyebrow">Desempenho</p>
+              <h3>Atendimentos nos últimos 7 dias</h3>
+            </div>
+            <span id="premiumWeekTotal" class="premium-total-chip">0 atendimentos</span>
+          </div>
+
+          <div id="premiumWeeklyChart" class="premium-chart" aria-label="Gráfico de atendimentos da semana"></div>
+        </section>
+
+        <section class="premium-card">
+          <div class="premium-card__header">
+            <div>
+              <p class="section-heading__eyebrow">Financeiro</p>
+              <h3>Recebimentos de hoje</h3>
+            </div>
+          </div>
+          <div id="premiumPayments" class="premium-summary-list"></div>
+        </section>
+      </div>
+
+      <div class="premium-dashboard-grid premium-dashboard-grid--analytics">
+        <section class="premium-card">
+          <div class="premium-card__header">
+            <div>
+              <p class="section-heading__eyebrow">Preferências</p>
+              <h3>Serviços mais realizados</h3>
+            </div>
+          </div>
+          <div id="premiumTopServices" class="premium-ranking"></div>
+        </section>
+
+        <section class="premium-card">
+          <div class="premium-card__header">
+            <div>
+              <p class="section-heading__eyebrow">Relacionamento</p>
+              <h3>Clientes frequentes</h3>
+            </div>
+          </div>
+          <div id="premiumFrequentCustomers" class="premium-ranking"></div>
+        </section>
+      </div>
+
+      <section class="premium-card premium-card--quick-add">
+        <div class="premium-card__header">
+          <div>
+            <p class="section-heading__eyebrow">Ação rápida</p>
+            <h3>Adicionar cliente à fila</h3>
+          </div>
+          <div class="premium-inline-metrics">
+            <span>Ticket médio <strong id="metricAverage">R$ 0,00</strong></span>
+            <span>Tempo médio <strong id="metricAverageTime">00:00</strong></span>
+          </div>
+        </div>
+
+        <form id="customerForm" class="form-grid premium-form">
+          <div class="field">
+            <label for="customerName">Nome do cliente</label>
+            <input id="customerName" name="customerName" type="text" minlength="2" maxlength="80" autocomplete="name" required />
+          </div>
+
+          <div class="field">
+            <label for="customerPhone">WhatsApp</label>
+            <input id="customerPhone" name="customerPhone" type="tel" inputmode="numeric" placeholder="(71) 99999-9999" maxlength="15" required />
+          </div>
+
+          <div class="field">
+            <label for="customerService">Serviço</label>
+            <select id="customerService" name="customerService" required>
+              <option value="">Selecione</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="customerPayment">Forma de pagamento</label>
+            <select id="customerPayment" name="customerPayment" required>
+              <option value="">Selecione</option>
+              <option value="Pix">Pix</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Débito">Cartão de débito</option>
+              <option value="Crédito">Cartão de crédito</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="customerValue">Valor do serviço</label>
+            <input id="customerValue" name="customerValue" type="text" readonly aria-readonly="true" />
+          </div>
+
+          <div class="form-actions">
+            <button class="button button--primary botao-destaque" type="submit">Adicionar à fila</button>
+            <button class="button button--secondary" type="reset">Limpar</button>
+          </div>
+        </form>
+      </section>
     </section>
 
     <section id="fila" class="view" aria-labelledby="titulo-fila">
@@ -535,6 +599,30 @@
 
       <div class="layout-grid">
         <section class="panel">
+          <h3>Dados do profissional</h3>
+
+          <form id="professionalSettingsForm" class="form-grid">
+            <div class="field field--full">
+              <label for="professionalSettingsName">Nome do profissional</label>
+              <input
+                id="professionalSettingsName"
+                type="text"
+                minlength="2"
+                maxlength="60"
+                autocomplete="name"
+                required
+              />
+            </div>
+
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">
+                Salvar nome
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
           <h3>Foto do profissional</h3>
           <div class="profile-settings">
             <img id="professionalPhotoPreview" class="professional-photo-preview" src="./assets/images/professional-placeholder.svg" alt="Prévia da foto do profissional" />
@@ -543,7 +631,7 @@
                 <label for="professionalPhotoInput">Selecionar foto</label>
                 <input id="professionalPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" />
               </div>
-              <p class="muted">JPG, PNG ou WebP. Limite de 1 MB.</p>
+              <p class="muted">JPG, PNG ou WebP. Limite de 5 MB.</p>
               <button class="button button--danger-outline" id="removeProfessionalPhotoButton" type="button">Remover foto</button>
             </div>
           </div>
@@ -573,15 +661,76 @@
             </div>
 
             <div class="form-actions">
-              <button class="button button--primary" type="submit">Salvar configurações</button>
-              <button class="button button--secondary" id="testSoundButton" type="button">Testar som</button>
+              <button
+                class="button button--primary settings-save-button"
+                id="saveSoundSettingsButton"
+                type="submit"
+              >
+                <span class="settings-save-button__icon" aria-hidden="true">✓</span>
+                <span class="settings-save-button__label">Salvar configurações</span>
+              </button>
+
+              <button class="button button--secondary" id="testSoundButton" type="button">
+                Testar som
+              </button>
             </div>
+
+            <p
+              class="settings-save-feedback"
+              id="soundSettingsFeedback"
+              role="status"
+              aria-live="polite"
+              hidden
+            >
+              <span aria-hidden="true">✓</span>
+              Configurações salvas com sucesso.
+            </p>
           </form>
         </section>
       </div>
     </section>
 
   </main>
+
+
+  <div class="mobile-more-backdrop" id="mobileMoreBackdrop" hidden></div>
+  <section class="mobile-more-menu" id="mobileMoreMenu" aria-label="Mais opções" hidden>
+    <div class="mobile-more-menu__header">
+      <div>
+        <p class="section-heading__eyebrow">Navegação</p>
+        <h2>Mais opções</h2>
+      </div>
+      <button class="button button--secondary mobile-more-close" id="mobileMoreClose" type="button" aria-label="Fechar menu">×</button>
+    </div>
+    <div class="mobile-more-menu__grid">
+      <button type="button" data-mobile-more-target="servicos"><span>✂</span>Serviços</button>
+      <button type="button" data-mobile-more-target="calendario"><span>▦</span>Calendário</button>
+      <button type="button" data-mobile-more-target="fechamento"><span>R$</span>Fechamento</button>
+      <button type="button" data-mobile-more-target="configuracoes"><span>⚙</span>Configurações</button>
+    </div>
+    <button class="mobile-more-collapse" id="mobileMoreCollapse" type="button">
+      <span aria-hidden="true">⌄</span>
+      Recolher menu
+    </button>
+  </section>
+
+  <nav class="mobile-app-nav" aria-label="Navegação inferior">
+    <button class="mobile-app-nav__item is-active" type="button" data-mobile-target="painel">
+      <span aria-hidden="true">⌂</span><small>Início</small>
+    </button>
+    <button class="mobile-app-nav__item" type="button" data-mobile-target="fila">
+      <span aria-hidden="true">⌛</span><small>Fila</small>
+    </button>
+    <button class="mobile-app-nav__item" type="button" data-mobile-target="clientes">
+      <span aria-hidden="true">♙</span><small>Clientes</small>
+    </button>
+    <button class="mobile-app-nav__item" type="button" data-mobile-target="historico">
+      <span aria-hidden="true">◷</span><small>Histórico</small>
+    </button>
+    <button class="mobile-app-nav__item" id="mobileMoreButton" type="button" aria-expanded="false" aria-controls="mobileMoreMenu">
+      <span aria-hidden="true">☰</span><small>Mais</small>
+    </button>
+  </nav>
 
   <footer class="app-footer">
     <p>Barbearia Resenha Boa — Desde 2017</p>
@@ -646,7 +795,13 @@
         <input id="serviceDurationMinutes" type="number" min="1" max="240" step="1" value="30" required />
       </div>
       <div class="dialog__actions">
-        <button class="button button--primary" type="submit">Iniciar atendimento</button>
+        <button
+          class="button button--primary service-start-confirm-button"
+          id="confirmStartServiceButton"
+          type="submit"
+        >
+          <span class="service-start-confirm-button__label">Iniciar atendimento</span>
+        </button>
         <button class="button button--secondary" id="cancelServiceDurationButton" type="button">Cancelar</button>
       </div>
     </form>
