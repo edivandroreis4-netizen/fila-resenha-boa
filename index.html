@@ -40,6 +40,24 @@
     </div>
 
     <div class="header-actions">
+      <div class="sync-chip sync-chip--local" id="syncChip" title="Status da sincronização">
+        <span class="sync-chip__dot" aria-hidden="true"></span>
+        <span id="syncChipText">Modo local</span>
+      </div>
+
+      <button
+        class="global-search-trigger"
+        id="globalSearchButton"
+        type="button"
+        aria-haspopup="dialog"
+        aria-controls="globalSearchDialog"
+        title="Pesquisar fila, agendamentos, clientes, histórico e serviços"
+      >
+        <span class="global-search-trigger__icon" aria-hidden="true">⌕</span>
+        <span>Busca global</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+
 <button class="button button--secondary" id="installAppButton" type="button" hidden>
         Instalar aplicativo
       </button>
@@ -59,6 +77,9 @@
     <button class="tab" type="button" data-target="servicos" aria-selected="false">
       Serviços
     </button>
+    <button class="tab" type="button" data-target="agendamentos" aria-selected="false">
+      Agendamentos
+    </button>
     <button class="tab" type="button" data-target="historico" aria-selected="false">
       Histórico
     </button>
@@ -72,6 +93,32 @@
       Configurações
     </button>
   </nav>
+
+  
+  <aside
+    id="globalPresenceAlert"
+    class="global-presence-alert"
+    role="alert"
+    aria-live="assertive"
+    hidden
+  >
+    <span class="global-presence-alert__icon" aria-hidden="true">!</span>
+
+    <div class="global-presence-alert__content">
+      <strong id="globalPresenceAlertTitle">
+        Cliente sem confirmação de presença
+      </strong>
+      <p id="globalPresenceAlertText"></p>
+    </div>
+
+    <button
+      id="openPresenceAppointmentsButton"
+      class="global-presence-alert__button"
+      type="button"
+    >
+      Ver agendamentos
+    </button>
+  </aside>
 
   <main id="conteudo" class="container">
 
@@ -94,6 +141,14 @@
           </div>
         </div>
 </section>
+
+      <aside class="arrival-order-notice" role="note">
+        <span class="arrival-order-notice__icon" aria-hidden="true">⌛</span>
+        <div>
+          <strong>Atendimento por ordem de chegada</strong>
+          <p>O agendamento registra a preferência do cliente. A posição na fila é definida quando ele chega à barbearia.</p>
+        </div>
+      </aside>
 
       <div class="premium-section-heading">
         <div>
@@ -423,6 +478,49 @@
       </div>
     </section>
 
+    <section id="agendamentos" class="view" aria-labelledby="titulo-agendamentos">
+      <div class="section-heading">
+        <div>
+          <p class="section-heading__eyebrow">Agenda conectada</p>
+          <h2 id="titulo-agendamentos">Agendamentos dos clientes</h2>
+          <p class="muted">Os pedidos feitos pelo aplicativo do cliente aparecem aqui automaticamente.</p>
+        </div>
+        <button class="button button--secondary" id="refreshAppointmentsButton" type="button">Atualizar</button>
+      </div>
+
+      <aside class="arrival-order-notice arrival-order-notice--light" role="note">
+        <span class="arrival-order-notice__icon" aria-hidden="true">✓</span>
+        <div>
+          <strong>O horário é uma preferência</strong>
+          <p>Ao chegar, confirme a presença do cliente. Ele será adicionado à fila respeitando a ordem de chegada.</p>
+        </div>
+      </aside>
+
+
+      
+
+      <div class="appointments-toolbar">
+        <div class="field">
+          <label for="appointmentsDateFilter">Data</label>
+          <input id="appointmentsDateFilter" type="date" />
+        </div>
+        <div class="field">
+          <label for="appointmentsStatusFilter">Situação</label>
+          <select id="appointmentsStatusFilter">
+            <option value="">Todos</option>
+            <option value="agendado">Agendados</option>
+            <option value="na_fila">Na fila</option>
+            <option value="concluido">Atendidos</option>
+            <option value="cancelado">Cancelados</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="appointmentsList" class="appointments-list" aria-live="polite">
+        <div class="empty-state">Conecte o Supabase para receber agendamentos.</div>
+      </div>
+    </section>
+
     <section id="historico" class="view" aria-labelledby="titulo-historico">
       <div class="section-heading">
         <div>
@@ -637,6 +735,23 @@
           </div>
         </section>
 
+        <section class="panel sync-settings-panel">
+          <div class="sync-settings-panel__header">
+            <div>
+              <p class="section-heading__eyebrow">Nuvem</p>
+              <h3>Supabase e sincronização</h3>
+            </div>
+            <span class="sync-settings-badge" id="syncSettingsBadge">Modo local</span>
+          </div>
+          <p class="muted" id="syncSettingsMessage">A versão atual continua funcionando no aparelho. Configure o Supabase para sincronizar profissionais, serviços, clientes, fila e relatórios.</p>
+          <div class="sync-actions">
+            <button class="button button--primary" id="syncNowButton" type="button">Sincronizar agora</button>
+            <button class="button button--secondary" id="migrateLocalButton" type="button">Enviar dados locais</button>
+            <a class="button button--secondary" href="./cliente/" target="_blank" rel="noopener">Abrir app do cliente</a>
+          </div>
+          <p class="sync-last-update" id="syncLastUpdate">Nenhuma sincronização realizada.</p>
+        </section>
+
         <section class="panel">
           <h3>Som do alerta</h3>
           <form id="soundSettingsForm" class="form-grid">
@@ -703,6 +818,7 @@
       <button class="button button--secondary mobile-more-close" id="mobileMoreClose" type="button" aria-label="Fechar menu">×</button>
     </div>
     <div class="mobile-more-menu__grid">
+      <button type="button" data-mobile-more-target="agendamentos"><span>▣</span>Agendamentos</button>
       <button type="button" data-mobile-more-target="servicos"><span>✂</span>Serviços</button>
       <button type="button" data-mobile-more-target="calendario"><span>▦</span>Calendário</button>
       <button type="button" data-mobile-more-target="fechamento"><span>R$</span>Fechamento</button>
@@ -739,6 +855,92 @@
       <p class="developer-credit">Desenvolvido por <strong>Edivandro Lima</strong></p>
     </div>
   </footer>
+
+
+  
+  <dialog
+    id="globalSearchDialog"
+    class="global-search-dialog"
+    aria-labelledby="globalSearchTitle"
+  >
+    <section class="global-search-panel">
+      <header class="global-search-panel__header">
+        <div>
+          <p class="section-heading__eyebrow">Central de dados</p>
+          <h2 id="globalSearchTitle">Busca global</h2>
+          <p>
+            Localize dados deste profissional e organize os resultados por categoria.
+          </p>
+        </div>
+
+        <button
+          id="closeGlobalSearchButton"
+          class="global-search-close"
+          type="button"
+          aria-label="Fechar busca global"
+        >
+          ×
+        </button>
+      </header>
+
+      <label class="global-search-field" for="globalSearchInput">
+        <span>Pesquisar</span>
+        <div>
+          <span aria-hidden="true">⌕</span>
+          <input
+            id="globalSearchInput"
+            type="search"
+            autocomplete="off"
+            placeholder="Nome, telefone, serviço, status ou pagamento"
+          />
+        </div>
+      </label>
+
+      <div class="global-search-toolbar">
+        <div
+          id="globalSearchFilters"
+          class="global-search-filters"
+          aria-label="Categorias da busca"
+        >
+          <button class="is-active" type="button" data-search-category="todos">
+            Todos <span data-search-count="todos">0</span>
+          </button>
+          <button type="button" data-search-category="fila">
+            Fila <span data-search-count="fila">0</span>
+          </button>
+          <button type="button" data-search-category="agendamentos">
+            Agendamentos <span data-search-count="agendamentos">0</span>
+          </button>
+          <button type="button" data-search-category="clientes">
+            Clientes <span data-search-count="clientes">0</span>
+          </button>
+          <button type="button" data-search-category="historico">
+            Histórico <span data-search-count="historico">0</span>
+          </button>
+          <button type="button" data-search-category="servicos">
+            Serviços <span data-search-count="servicos">0</span>
+          </button>
+        </div>
+
+        <label class="global-search-sort" for="globalSearchSort">
+          Ordenar
+          <select id="globalSearchSort">
+            <option value="relevancia">Relevância</option>
+            <option value="recentes">Mais recentes</option>
+            <option value="alfabetica">Ordem alfabética</option>
+          </select>
+        </label>
+      </div>
+
+      <p id="globalSearchSummary" class="global-search-summary"></p>
+
+      <div
+        id="globalSearchResults"
+        class="global-search-results"
+        aria-live="polite"
+      ></div>
+    </section>
+  </dialog>
 
 
   <dialog id="knownCustomerQueueDialog" class="dialog">

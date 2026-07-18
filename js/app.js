@@ -1,3 +1,5 @@
+import { initSupabaseSync, scheduleSupabaseSync, syncNow, updateAppointment, isSupabaseConfigured } from "./supabase-sync.js";
+
 const STORAGE_KEYS = {
   services: "resenha-boa-services-v13",
   queue: "resenha-boa-queue-v13",
@@ -24,13 +26,29 @@ let alertSettings = load(STORAGE_KEYS.alertSettings, {
   vibrationOnly: false
 });
 let professional = load(STORAGE_KEYS.professional, { name: "" });
+professional.id ||= crypto.randomUUID();
 let closures = load(STORAGE_KEYS.closures, []);
 let knownCustomers = load(STORAGE_KEYS.knownCustomers, []);
+let appointments = [];
 let deferredInstallPrompt = null;
 let calendarDate = new Date();
 let selectedCalendarDate = localDateKey();
 let audioContext = null;
 const alertedCustomers = new Set();
+const presenceAlertNotifications = new Set();
+let globalSearchCategory = "todos";
+
+const GLOBAL_SEARCH_CATEGORIES = {
+  fila: { label: "Fila", target: "fila", order: 1 },
+  agendamentos: {
+    label: "Agendamentos",
+    target: "agendamentos",
+    order: 2
+  },
+  clientes: { label: "Clientes", target: "clientes", order: 3 },
+  historico: { label: "Histórico", target: "historico", order: 4 },
+  servicos: { label: "Serviços", target: "servicos", order: 5 }
+};
 
 const elements = {
   tabs: document.querySelectorAll(".tab"),
@@ -72,6 +90,32 @@ const elements = {
   nextCustomerDetails: document.querySelector("#nextCustomerDetails"),
   quickQueue: document.querySelector("#quickQueue"),
   queueList: document.querySelector("#queueList"),
+
+  appointmentsList: document.querySelector("#appointmentsList"),
+  appointmentsDateFilter: document.querySelector("#appointmentsDateFilter"),
+  appointmentsStatusFilter: document.querySelector("#appointmentsStatusFilter"),
+  refreshAppointmentsButton: document.querySelector("#refreshAppointmentsButton"),
+  globalPresenceAlert: document.querySelector("#globalPresenceAlert"),
+  globalPresenceAlertTitle: document.querySelector("#globalPresenceAlertTitle"),
+  globalPresenceAlertText: document.querySelector("#globalPresenceAlertText"),
+  openPresenceAppointmentsButton: document.querySelector("#openPresenceAppointmentsButton"),
+
+  globalSearchButton: document.querySelector("#globalSearchButton"),
+  globalSearchDialog: document.querySelector("#globalSearchDialog"),
+  closeGlobalSearchButton: document.querySelector("#closeGlobalSearchButton"),
+  globalSearchInput: document.querySelector("#globalSearchInput"),
+  globalSearchFilters: document.querySelector("#globalSearchFilters"),
+  globalSearchSort: document.querySelector("#globalSearchSort"),
+  globalSearchSummary: document.querySelector("#globalSearchSummary"),
+  globalSearchResults: document.querySelector("#globalSearchResults"),
+
+  syncChip: document.querySelector("#syncChip"),
+  syncChipText: document.querySelector("#syncChipText"),
+  syncSettingsBadge: document.querySelector("#syncSettingsBadge"),
+  syncSettingsMessage: document.querySelector("#syncSettingsMessage"),
+  syncLastUpdate: document.querySelector("#syncLastUpdate"),
+  syncNowButton: document.querySelector("#syncNowButton"),
+  migrateLocalButton: document.querySelector("#migrateLocalButton"),
 
   serviceForm: document.querySelector("#serviceForm"),
   serviceId: document.querySelector("#serviceId"),
@@ -204,6 +248,7 @@ function saveAll() {
   localStorage.setItem(STORAGE_KEYS.professional, JSON.stringify(professional));
   localStorage.setItem(STORAGE_KEYS.closures, JSON.stringify(closures));
   localStorage.setItem(STORAGE_KEYS.knownCustomers, JSON.stringify(knownCustomers));
+  scheduleSupabaseSync();
 }
 
 function localDateKey(value = new Date()) {
@@ -476,7 +521,7 @@ function renderServices() {
 
   elements.serviceList.innerHTML = services
     .map(service => `
-      <article class="service-card">
+      <article class="service-card" data-service-id="${service.id}">
         <div class="card-topline">
           <div>
             <h3>${escapeHtml(service.name)}</h3>
@@ -710,7 +755,7 @@ function renderHistory() {
 
   elements.historyList.innerHTML = items
     .map(item => `
-      <article class="history-card">
+      <article class="history-card" data-history-id="${item.id || item.finishedAt}">
         <div class="card-topline">
           <div>
             <h3>${escapeHtml(item.name)}</h3>
@@ -1059,7 +1104,7 @@ function renderKnownCustomers() {
     const service = services.find(item => item.id === customer.serviceId);
 
     return `
-      <article class="known-customer-card">
+      <article class="known-customer-card" data-known-customer-id="${customer.id}">
         <div class="card-topline">
           <div>
             <h3>${escapeHtml(customer.name)}</h3>
@@ -1301,7 +1346,7 @@ function activateView(targetId) {
     view.classList.toggle("is-visible", view.id === targetId);
   });
 
-  const moreTargets = ["servicos", "calendario", "fechamento", "configuracoes"];
+  const moreTargets = ["agendamentos", "servicos", "calendario", "fechamento", "configuracoes"];
   elements.mobileNavItems.forEach(item => {
     const directMatch = item.dataset.mobileTarget === targetId;
     const moreMatch = item.id === "mobileMoreButton" && moreTargets.includes(targetId);
@@ -1312,18 +1357,770 @@ function activateView(targetId) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+
+
+
+function normalizeGlobalSearchValue(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function globalSearchTimestamp(value) {
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function buildGlobalSearchIndex() {
+  const serviceById = new Map(
+    services.map(service => [service.id, service])
+  );
+
+  const queueItems = queue.map(item => ({
+    category: "fila",
+    id: String(item.id),
+    title: item.name,
+    subtitle:
+      `${item.serviceName} • ${statusInfo(item).label}`,
+    detail:
+      `${formatPhone(item.phone)} • ${formatMoney(item.value)} • ${item.payment}`,
+    timestamp: item.startedAt || item.createdAt,
+    searchText: [
+      item.name,
+      item.phone,
+      item.serviceName,
+      item.status,
+      item.payment,
+      item.professional
+    ].join(" ")
+  }));
+
+  const appointmentItems = appointments.map(item => {
+    const presence = appointmentPresenceInfo(
+      item.presenceStatus || "nao_confirmado"
+    );
+
+    return {
+      category: "agendamentos",
+      id: String(item.id),
+      title: item.clientName,
+      subtitle:
+        `${item.serviceName} • ${appointmentStatusLabel(item.status)} • ${presence.label}`,
+      detail:
+        `${formatPhone(item.phone)} • ${formatDate(item.date)} às ${item.time}`,
+      timestamp: `${item.date}T${item.time || "00:00"}:00`,
+      date: item.date,
+      searchText: [
+        item.clientName,
+        item.phone,
+        item.serviceName,
+        item.status,
+        presence.label,
+        item.payment,
+        item.notes,
+        item.date,
+        item.time
+      ].join(" ")
+    };
+  });
+
+  const customerItems = knownCustomers.map(item => {
+    const service = serviceById.get(item.serviceId);
+
+    return {
+      category: "clientes",
+      id: String(item.id),
+      title: item.name,
+      subtitle:
+        `${service?.name || "Serviço indisponível"} • ${item.payment}`,
+      detail:
+        `${formatPhone(item.phone)}${
+          item.lastVisit
+            ? ` • Última visita ${formatDateTime(item.lastVisit)}`
+            : ""
+        }`,
+      timestamp: item.lastVisit,
+      searchText: [
+        item.name,
+        item.phone,
+        service?.name,
+        item.payment,
+        item.notes
+      ].join(" ")
+    };
+  });
+
+  const historyItems = history.map(item => ({
+    category: "historico",
+    id: String(item.id || item.finishedAt),
+    title: item.name,
+    subtitle:
+      `${item.serviceName} • ${formatMoney(item.value)} • ${item.payment}`,
+    detail:
+      `Finalizado em ${formatDateTime(item.finishedAt)}`,
+    timestamp: item.finishedAt,
+    searchText: [
+      item.name,
+      item.phone,
+      item.serviceName,
+      item.payment,
+      item.value,
+      item.finishedAt
+    ].join(" ")
+  }));
+
+  const serviceItems = services.map(item => ({
+    category: "servicos",
+    id: String(item.id),
+    title: item.name,
+    subtitle: formatMoney(item.price),
+    detail: "Serviço cadastrado para este profissional",
+    timestamp: 0,
+    searchText: [
+      item.name,
+      item.price
+    ].join(" ")
+  }));
+
+  return [
+    ...queueItems,
+    ...appointmentItems,
+    ...customerItems,
+    ...historyItems,
+    ...serviceItems
+  ].map(item => ({
+    ...item,
+    normalizedTitle: normalizeGlobalSearchValue(item.title),
+    normalizedSubtitle: normalizeGlobalSearchValue(item.subtitle),
+    normalizedDetail: normalizeGlobalSearchValue(item.detail),
+    normalizedSearchText: normalizeGlobalSearchValue(item.searchText)
+  }));
+}
+
+function globalSearchScore(item, query) {
+  if (!query) return 0;
+
+  const terms = query.split(/\s+/).filter(Boolean);
+
+  if (
+    !terms.every(term =>
+      item.normalizedSearchText.includes(term) ||
+      item.normalizedTitle.includes(term) ||
+      item.normalizedSubtitle.includes(term) ||
+      item.normalizedDetail.includes(term)
+    )
+  ) {
+    return -1;
+  }
+
+  let score = 0;
+
+  if (item.normalizedTitle === query) score += 200;
+  if (item.normalizedTitle.startsWith(query)) score += 120;
+  else if (item.normalizedTitle.includes(query)) score += 80;
+
+  if (item.normalizedSubtitle.includes(query)) score += 35;
+  if (item.normalizedDetail.includes(query)) score += 20;
+
+  score += terms.reduce((total, term) => {
+    if (item.normalizedTitle.startsWith(term)) return total + 20;
+    if (item.normalizedTitle.includes(term)) return total + 12;
+    if (item.normalizedSearchText.includes(term)) return total + 5;
+    return total;
+  }, 0);
+
+  return score;
+}
+
+function globalSearchComparator(sortMode) {
+  if (sortMode === "alfabetica") {
+    return (a, b) =>
+      a.title.localeCompare(b.title, "pt-BR", {
+        sensitivity: "base"
+      });
+  }
+
+  if (sortMode === "recentes") {
+    return (a, b) =>
+      globalSearchTimestamp(b.timestamp) -
+      globalSearchTimestamp(a.timestamp);
+  }
+
+  return (a, b) =>
+    b.score - a.score ||
+    globalSearchTimestamp(b.timestamp) -
+      globalSearchTimestamp(a.timestamp) ||
+    a.title.localeCompare(b.title, "pt-BR", {
+      sensitivity: "base"
+    });
+}
+
+function globalSearchResultMarkup(item) {
+  const category = GLOBAL_SEARCH_CATEGORIES[item.category];
+
+  return `
+    <button
+      class="global-search-result"
+      type="button"
+      data-global-result-category="${item.category}"
+      data-global-result-id="${escapeHtml(item.id)}"
+    >
+      <span class="global-search-result__category">
+        ${category.label}
+      </span>
+
+      <span class="global-search-result__content">
+        <strong>${escapeHtml(item.title)}</strong>
+        <span>${escapeHtml(item.subtitle)}</span>
+        <small>${escapeHtml(item.detail)}</small>
+      </span>
+
+      <span
+        class="global-search-result__arrow"
+        aria-hidden="true"
+      >→</span>
+    </button>
+  `;
+}
+
+function renderGlobalSearch() {
+  const query = normalizeGlobalSearchValue(
+    elements.globalSearchInput.value
+  );
+  const sortMode = elements.globalSearchSort.value;
+  const indexed = buildGlobalSearchIndex();
+
+  const scored = indexed
+    .map(item => ({
+      ...item,
+      score: globalSearchScore(item, query)
+    }))
+    .filter(item => item.score >= 0);
+
+  const counts = scored.reduce(
+    (summary, item) => {
+      summary.todos += 1;
+      summary[item.category] += 1;
+      return summary;
+    },
+    {
+      todos: 0,
+      fila: 0,
+      agendamentos: 0,
+      clientes: 0,
+      historico: 0,
+      servicos: 0
+    }
+  );
+
+  elements.globalSearchFilters
+    .querySelectorAll("[data-search-count]")
+    .forEach(counter => {
+      counter.textContent =
+        counts[counter.dataset.searchCount] || 0;
+    });
+
+  elements.globalSearchFilters
+    .querySelectorAll("[data-search-category]")
+    .forEach(button => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.searchCategory === globalSearchCategory
+      );
+    });
+
+  const filtered = scored
+    .filter(item =>
+      globalSearchCategory === "todos"
+        ? true
+        : item.category === globalSearchCategory
+    )
+    .sort(globalSearchComparator(sortMode))
+    .slice(0, 60);
+
+  elements.globalSearchSummary.textContent = query
+    ? `${filtered.length} resultado(s) para “${elements.globalSearchInput.value.trim()}”.`
+    : `${filtered.length} registro(s) organizados por categoria. Digite para pesquisar.`;
+
+  if (!filtered.length) {
+    elements.globalSearchResults.innerHTML = `
+      <div class="global-search-empty">
+        <strong>Nenhum resultado encontrado.</strong>
+        <span>Tente pesquisar por outro nome, telefone, serviço ou situação.</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (globalSearchCategory !== "todos") {
+    elements.globalSearchResults.innerHTML =
+      filtered.map(globalSearchResultMarkup).join("");
+    return;
+  }
+
+  const groups = Object.entries(GLOBAL_SEARCH_CATEGORIES)
+    .sort(([, a], [, b]) => a.order - b.order)
+    .map(([categoryKey, category]) => {
+      const items = filtered.filter(
+        item => item.category === categoryKey
+      );
+
+      if (!items.length) return "";
+
+      return `
+        <section class="global-search-group">
+          <header>
+            <h3>${category.label}</h3>
+            <span>${items.length}</span>
+          </header>
+          ${items.map(globalSearchResultMarkup).join("")}
+        </section>
+      `;
+    })
+    .join("");
+
+  elements.globalSearchResults.innerHTML = groups;
+}
+
+function openGlobalSearch() {
+  globalSearchCategory = "todos";
+  elements.globalSearchInput.value = "";
+  elements.globalSearchSort.value = "relevancia";
+  renderGlobalSearch();
+
+  if (!elements.globalSearchDialog.open) {
+    elements.globalSearchDialog.showModal();
+  }
+
+  window.setTimeout(
+    () => elements.globalSearchInput.focus(),
+    50
+  );
+}
+
+function closeGlobalSearch() {
+  if (elements.globalSearchDialog.open) {
+    elements.globalSearchDialog.close();
+  }
+}
+
+function findGlobalSearchTarget(category, id) {
+  const selectors = {
+    fila: "[data-customer-id]",
+    agendamentos: "[data-appointment-id]",
+    clientes: "[data-known-customer-id]",
+    historico: "[data-history-id]",
+    servicos: "[data-service-id]"
+  };
+
+  const dataKeys = {
+    fila: "customerId",
+    agendamentos: "appointmentId",
+    clientes: "knownCustomerId",
+    historico: "historyId",
+    servicos: "serviceId"
+  };
+
+  return Array.from(
+    document.querySelectorAll(selectors[category] || "")
+  ).find(element =>
+    String(element.dataset[dataKeys[category]]) === String(id)
+  );
+}
+
+function openGlobalSearchResult(category, id) {
+  const categoryInfo = GLOBAL_SEARCH_CATEGORIES[category];
+
+  if (!categoryInfo) return;
+
+  if (category === "agendamentos") {
+    const appointment = appointments.find(
+      item => String(item.id) === String(id)
+    );
+
+    elements.appointmentsDateFilter.value =
+      appointment?.date || "";
+    elements.appointmentsStatusFilter.value = "";
+    renderAppointments();
+  }
+
+  if (category === "clientes") {
+    elements.knownCustomerSearch.value = "";
+    renderKnownCustomers();
+  }
+
+  if (category === "historico") {
+    const item = history.find(
+      historyItem =>
+        String(historyItem.id || historyItem.finishedAt) ===
+        String(id)
+    );
+
+    elements.historyDateFilter.value =
+      item?.finishedAt
+        ? localDateKey(item.finishedAt)
+        : "";
+    renderHistory();
+  }
+
+  activateView(categoryInfo.target);
+  closeGlobalSearch();
+
+  window.setTimeout(() => {
+    const target = findGlobalSearchTarget(category, id);
+
+    if (!target) return;
+
+    target.classList.add("global-search-highlight");
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+
+    window.setTimeout(
+      () => target.classList.remove("global-search-highlight"),
+      2600
+    );
+  }, 380);
+}
+
+
+function appointmentPresenceInfo(status) {
+  const values = {
+    nao_confirmado: {
+      label: "Sem confirmação",
+      className: "appointment-presence--pending"
+    },
+    a_caminho: {
+      label: "Sem confirmação",
+      className: "appointment-presence--pending"
+    },
+    presente: {
+      label: "Presente",
+      className: "appointment-presence--present"
+    },
+    ausente: {
+      label: "Ausente",
+      className: "appointment-presence--absent"
+    }
+  };
+
+  return values[status] || values.nao_confirmado;
+}
+
+function appointmentPreferredDate(appointment) {
+  return new Date(`${appointment.date}T${appointment.time || "00:00"}:00`);
+}
+
+function getPresenceAlertContext() {
+  const current = queue.find(
+    item => item.status === "em_atendimento"
+  );
+
+  if (!current?.expectedEndAt) return null;
+
+  const remainingMinutes = Math.ceil(
+    remainingSeconds(current) / 60
+  );
+
+  if (remainingMinutes > 10) return null;
+
+  const queueAppointmentIds = new Set(
+    queue
+      .map(item => item.appointmentId)
+      .filter(Boolean)
+  );
+
+  const candidates = appointments
+    .filter(item => {
+      return (
+        item.status === "agendado" &&
+        item.date === localDateKey() &&
+        ["nao_confirmado", "a_caminho"].includes(
+          item.presenceStatus || "nao_confirmado"
+        ) &&
+        !queueAppointmentIds.has(item.id)
+      );
+    })
+    .sort(
+      (a, b) =>
+        appointmentPreferredDate(a) -
+        appointmentPreferredDate(b)
+    );
+
+  if (!candidates.length) return null;
+
+  const safeEstimate = Math.max(0, remainingMinutes);
+  const visibleCandidates = candidates.slice(0, 3);
+  const names = visibleCandidates
+    .map(item => item.clientName)
+    .join(", ");
+
+  return {
+    currentCustomerId: current.id,
+    appointmentIds: candidates.map(item => item.id),
+    count: candidates.length,
+    names,
+    estimate: safeEstimate,
+    urgent: remainingMinutes <= 5,
+    overdue: remainingMinutes <= 0
+  };
+}
+
+function notifyPresenceAlert(context) {
+  if (!context) return;
+
+  const level = context.urgent ? "5" : "10";
+  const key =
+    `${context.currentCustomerId}:${level}:` +
+    context.appointmentIds.join(",");
+
+  if (presenceAlertNotifications.has(key)) return;
+
+  presenceAlertNotifications.add(key);
+
+  const message =
+    context.count === 1
+      ? `${context.names} ainda não confirmou presença.`
+      : `${context.count} clientes ainda não confirmaram presença.`;
+
+  showToast(message);
+  playAlarmSound(alertSettings.soundType, alertSettings.volume);
+
+  if ("vibrate" in navigator) {
+    navigator.vibrate(
+      context.urgent ? [120, 70, 120] : [80, 50, 80]
+    );
+  }
+}
+
+function renderAppointmentsPresenceAlert(context) {
+  const alerts = [
+    {
+      container: elements.globalPresenceAlert,
+      title: elements.globalPresenceAlertTitle,
+      text: elements.globalPresenceAlertText
+    }
+  ];
+
+  alerts.forEach(alert => {
+    if (!alert.container) return;
+
+    if (!context) {
+      alert.container.hidden = true;
+      alert.container.classList.remove("is-urgent");
+      return;
+    }
+
+    alert.container.hidden = false;
+    alert.container.classList.toggle(
+      "is-urgent",
+      context.urgent
+    );
+
+    alert.title.textContent =
+      context.count === 1
+        ? `${context.names} ainda não confirmou presença`
+        : `${context.count} clientes ainda não confirmaram presença`;
+
+    const estimateText = context.overdue
+      ? "O atendimento atual chegou ao tempo previsto."
+      : `Faltam aproximadamente ${Math.max(
+          1,
+          context.estimate
+        )} minuto(s) para o fim previsto do atendimento atual.`;
+
+    alert.text.textContent =
+      `${estimateText} Abra os agendamentos para verificar os clientes. ` +
+      "O sistema não remove nem reposiciona ninguém automaticamente.";
+  });
+
+  notifyPresenceAlert(context);
+}
+
+function evaluatePresenceAlert() {
+  renderAppointmentsPresenceAlert(
+    getPresenceAlertContext()
+  );
+}
+
+function appointmentStatusLabel(status) {
+  return ({
+    agendado: "Agendado",
+    na_fila: "Na fila",
+    cancelado: "Cancelado",
+    atendido: "Atendido",
+    concluido: "Atendido"
+  })[status] || status;
+}
+
+function renderAppointments() {
+  if (!elements.appointmentsList) return;
+
+  const dateFilter = elements.appointmentsDateFilter.value;
+  const statusFilter = elements.appointmentsStatusFilter.value;
+  const presenceAlert = getPresenceAlertContext();
+
+  renderAppointmentsPresenceAlert(presenceAlert);
+
+  const filtered = appointments.filter(item => {
+    const matchesDate = !dateFilter || item.date === dateFilter;
+    const matchesStatus = !statusFilter || item.status === statusFilter;
+    return matchesDate && matchesStatus;
+  });
+
+  if (!isSupabaseConfigured()) {
+    elements.appointmentsList.innerHTML =
+      '<div class="empty-state">Configure o Supabase para receber agendamentos do aplicativo do cliente.</div>';
+    return;
+  }
+
+  if (!filtered.length) {
+    elements.appointmentsList.innerHTML =
+      '<div class="empty-state">Nenhum agendamento encontrado para o filtro selecionado.</div>';
+    return;
+  }
+
+  elements.appointmentsList.innerHTML = filtered
+    .map(item => {
+      const presence = appointmentPresenceInfo(
+        item.presenceStatus || "nao_confirmado"
+      );
+      const isAlerted =
+        presenceAlert?.appointmentId === item.id;
+      const hasQueueEntry = queue.some(
+        queueItem => queueItem.appointmentId === item.id
+      );
+      const needsQueueRecovery =
+        item.status === "na_fila" && !hasQueueEntry;
+      const canAddToQueue =
+        item.status === "agendado" || needsQueueRecovery;
+      const arrivalText = needsQueueRecovery
+        ? "Recolocar na fila"
+        : item.presenceStatus === "presente"
+          ? "Adicionar à fila"
+          : "Confirmar chegada";
+
+      return `
+        <article
+          class="appointment-card ${isAlerted ? "appointment-card--presence-alert" : ""}"
+          data-appointment-id="${item.id}"
+        >
+          <div>
+            <div class="appointment-card__title">
+              <h3>${escapeHtml(item.clientName)}</h3>
+              <div class="appointment-card__badges">
+                <span class="appointment-status appointment-status--${item.status}">
+                  ${appointmentStatusLabel(item.status)}
+                </span>
+                <span class="appointment-presence ${presence.className}">
+                  ${presence.label}
+                </span>
+              </div>
+            </div>
+
+            <div class="appointment-card__meta">
+              <span><strong>Preferência:</strong> ${formatDate(item.date)} às ${escapeHtml(item.time)}</span>
+              <span><strong>Serviço:</strong> ${escapeHtml(item.serviceName)} • ${formatMoney(item.value)}</span>
+              <span><strong>WhatsApp:</strong> ${escapeHtml(formatPhone(item.phone))}</span>
+              ${item.notes ? `<span><strong>Observação:</strong> ${escapeHtml(item.notes)}</span>` : ""}
+              ${
+                item.presenceUpdatedAt
+                  ? `<span><strong>Presença atualizada:</strong> ${formatDateTime(item.presenceUpdatedAt)}</span>`
+                  : ""
+              }
+              ${
+                isAlerted
+                  ? `<span class="appointment-presence-warning">
+                      O atendimento pode estar próximo e o cliente ainda não confirmou presença.
+                    </span>`
+                  : ""
+              }
+              ${
+                needsQueueRecovery
+                  ? `<span class="appointment-presence-warning">
+                      O agendamento está marcado como “Na fila”, mas a entrada precisa ser restaurada.
+                    </span>`
+                  : ""
+              }
+              <span>Atendimento realizado por ordem de chegada.</span>
+            </div>
+          </div>
+
+          <div class="appointment-card__actions">
+            ${
+              canAddToQueue
+                ? `<button class="button button--primary" type="button" data-appointment-action="arrival" data-id="${item.id}">
+                    ${arrivalText}
+                  </button>`
+                : ""
+            }
+            <button class="button button--secondary" type="button" data-appointment-action="whatsapp" data-id="${item.id}">
+              WhatsApp
+            </button>
+            ${
+              item.status === "agendado"
+                ? `<button class="button button--danger-outline" type="button" data-appointment-action="cancel" data-id="${item.id}">
+                    Cancelar
+                  </button>`
+                : ""
+            }
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function updateSyncInterface({ state, message, at }) {
+  const labels = { local: "Modo local", syncing: "Sincronizando", connected: "Conectado", error: "Erro" };
+  elements.syncChip.className = `sync-chip sync-chip--${state}`;
+  elements.syncChipText.textContent = labels[state] || "Supabase";
+  elements.syncSettingsBadge.textContent = labels[state] || "Supabase";
+  elements.syncSettingsBadge.className = `sync-settings-badge ${state === "connected" ? "is-connected" : state === "error" ? "is-error" : ""}`;
+  elements.syncSettingsMessage.textContent = message;
+  if (at && state === "connected") {
+    elements.syncLastUpdate.textContent = `Última atualização: ${formatDateTime(at)}`;
+  }
+}
+
+function getSyncState() {
+  return { services, queue, history, professional, closures, knownCustomers };
+}
+
+function applySyncState(remote) {
+  services = remote.services ?? services;
+  queue = remote.queue ?? queue;
+  history = remote.history ?? history;
+  professional = remote.professional ?? professional;
+  closures = remote.closures ?? closures;
+  knownCustomers = remote.knownCustomers ?? knownCustomers;
+  renderAll();
+}
+
 function renderAll() {
   renderProfessional();
   renderServiceOptions();
   renderServices();
   renderKnownCustomers();
   renderQueue();
+  renderAppointments();
   renderHistory();
   renderMetrics();
   renderPremiumDashboard();
+  renderAppointmentsPresenceAlert(
+    getPresenceAlertContext()
+  );
   renderMonthlySummary();
   renderCalendar();
   renderReport();
+
+  if (elements.globalSearchDialog.open) {
+    renderGlobalSearch();
+  }
+
   saveAll();
 }
 
@@ -1434,41 +2231,133 @@ async function startService(customer, plannedMinutes = null) {
   return true;
 }
 
-async function finishCustomer(customer) {
-  const confirmed = await confirmAction({
-    title: "Finalizar atendimento?",
+
+const PAYMENT_METHODS = ["Pix", "Dinheiro", "Débito", "Crédito"];
+
+async function requestFinalPayment(customer) {
+  const currentPayment = PAYMENT_METHODS.includes(customer.payment)
+    ? customer.payment
+    : "";
+
+  if (!swalAvailable()) {
+    const answer = window.prompt(
+      "Informe a forma de pagamento: Pix, Dinheiro, Débito ou Crédito.",
+      currentPayment || "Pix"
+    );
+
+    if (answer === null) return null;
+
+    const selected = PAYMENT_METHODS.find(
+      method => method.toLowerCase() === answer.trim().toLowerCase()
+    );
+
+    if (!selected) {
+      showToast("Selecione uma forma de pagamento válida.");
+      return requestFinalPayment(customer);
+    }
+
+    return selected;
+  }
+
+  const inputOptions = Object.fromEntries(
+    PAYMENT_METHODS.map(method => [method, method])
+  );
+
+  const result = await Swal.fire({
+    title: "Finalizar atendimento",
     html: `
-      <strong>Cliente:</strong> ${escapeHtml(customer.name)}<br>
-      <strong>Serviço:</strong> ${escapeHtml(customer.serviceName)}<br>
-      <strong>Valor:</strong> ${formatMoney(customer.value)}
+      <div class="finish-payment-summary">
+        <p><strong>Cliente:</strong> ${escapeHtml(customer.name)}</p>
+        <p><strong>Serviço:</strong> ${escapeHtml(customer.serviceName)}</p>
+        <p><strong>Valor:</strong> ${formatMoney(customer.value)}</p>
+        <p class="finish-payment-summary__notice">
+          Selecione a forma de pagamento para concluir o atendimento.
+        </p>
+      </div>
     `,
-    confirmText: "Finalizar",
-    icon: "question"
+    input: "select",
+    inputOptions,
+    inputPlaceholder: "Selecione a forma de pagamento",
+    inputValue: currentPayment,
+    inputValidator: value => {
+      if (!value || !PAYMENT_METHODS.includes(value)) {
+        return "A forma de pagamento é obrigatória.";
+      }
+
+      return undefined;
+    },
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Finalizar e registrar",
+    cancelButtonText: "Cancelar",
+    reverseButtons: true,
+    focusCancel: true
   });
 
-  if (!confirmed) return;
+  return result.isConfirmed ? result.value : null;
+}
+
+async function finishCustomer(customer) {
+  const payment = await requestFinalPayment(customer);
+
+  if (!payment) return;
+
+  customer.payment = payment;
 
   const finishedAt = new Date().toISOString();
   const startedAt = customer.startedAt || finishedAt;
 
   history.push({
     ...customer,
+    payment,
     status: "atendido",
     finishedAt,
     durationSeconds: durationSeconds(startedAt, finishedAt)
   });
 
   if (customer.knownCustomerId) {
-    const knownCustomer = knownCustomers.find(item => item.id === customer.knownCustomerId);
+    const knownCustomer = knownCustomers.find(
+      item => item.id === customer.knownCustomerId
+    );
 
     if (knownCustomer) {
       knownCustomer.lastVisit = finishedAt;
+      knownCustomer.payment = payment;
+    }
+  }
+
+  if (customer.appointmentId) {
+    const appointment = appointments.find(
+      item => item.id === customer.appointmentId
+    );
+
+    if (appointment) {
+      appointment.status = "concluido";
+      appointment.completedAt = finishedAt;
     }
   }
 
   queue = queue.filter(item => item.id !== customer.id);
   renderAll();
-  showToast("Atendimento finalizado e registrado.");
+
+  if (customer.appointmentId && isSupabaseConfigured()) {
+    try {
+      await updateAppointment(customer.appointmentId, {
+        status: "concluido",
+        completedAt: finishedAt
+      });
+    } catch (error) {
+      console.error("Não foi possível concluir o agendamento:", error);
+      showToast(
+        "Atendimento salvo. A atualização do agendamento será tentada novamente."
+      );
+      return;
+    }
+  }
+
+  showToast(
+    `Atendimento finalizado. Pagamento: ${payment}. Agendamento marcado como atendido.`
+  );
 }
 
 function moveCustomerUp(id) {
@@ -1496,6 +2385,7 @@ elements.todayLabel.textContent = new Intl.DateTimeFormat("pt-BR", {
 }).format(new Date());
 
 elements.reportDate.value = localDateKey();
+elements.appointmentsDateFilter.value = localDateKey();
 
 elements.tabs.forEach(tab => {
   tab.addEventListener("click", () => {
@@ -2142,7 +3032,9 @@ elements.professionalPhotoInput.addEventListener("change", async event => {
     professional.photo = await resizeImageFile(file);
     saveAll();
     renderAll();
-    showToast("Foto atualizada com sucesso.");
+    showToast(
+      "Foto atualizada. Ela aparecerá no aplicativo do cliente após a sincronização."
+    );
   } catch {
     showToast("Não foi possível processar a imagem.");
   }
@@ -2232,6 +3124,260 @@ elements.testSoundButton.addEventListener("click", () => {
   showToast("Som de teste reproduzido.");
 });
 
+
+elements.appointmentsDateFilter.addEventListener("change", renderAppointments);
+elements.appointmentsStatusFilter.addEventListener("change", renderAppointments);
+
+elements.refreshAppointmentsButton.addEventListener("click", async () => {
+  try {
+    await syncNow();
+    showToast("Agendamentos atualizados.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.syncNowButton.addEventListener("click", async () => {
+  try {
+    elements.syncNowButton.disabled = true;
+    await syncNow();
+    showToast("Sincronização concluída.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    elements.syncNowButton.disabled = false;
+  }
+});
+
+elements.migrateLocalButton.addEventListener("click", async () => {
+  const confirmed = await confirmAction({
+    title: "Enviar dados locais ao Supabase?",
+    html: "Profissional, serviços, clientes, fila, atendimentos e fechamentos deste aparelho serão enviados para o banco.",
+    confirmText: "Enviar dados",
+    icon: "question"
+  });
+  if (!confirmed) return;
+  try {
+    elements.migrateLocalButton.disabled = true;
+    await syncNow({ forcePush: true });
+    showToast("Dados locais enviados ao Supabase.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    elements.migrateLocalButton.disabled = false;
+  }
+});
+
+elements.appointmentsList.addEventListener("click", async event => {
+  const button = event.target.closest("[data-appointment-action]");
+  if (!button) return;
+  const appointment = appointments.find(item => item.id === button.dataset.id);
+  if (!appointment) return;
+
+  if (button.dataset.appointmentAction === "whatsapp") {
+    const message = encodeURIComponent(`Olá, ${appointment.clientName}! Seu pré-agendamento na Barbearia Resenha Boa está registrado. O atendimento é realizado por ordem de chegada.`);
+    window.open(`https://wa.me/55${appointment.phone}?text=${message}`, "_blank", "noopener");
+    return;
+  }
+
+  if (button.dataset.appointmentAction === "cancel") {
+    const confirmed = await confirmAction({ title: "Cancelar agendamento?", html: `<strong>${escapeHtml(appointment.clientName)}</strong> será marcado como cancelado.`, confirmText: "Cancelar agendamento", icon: "warning" });
+    if (!confirmed) return;
+    try {
+      await updateAppointment(appointment.id, { status: "cancelado" });
+      showToast("Agendamento cancelado.");
+    } catch (error) { showToast(error.message); }
+    return;
+  }
+
+  if (button.dataset.appointmentAction === "arrival") {
+    if (queue.some(item => item.appointmentId === appointment.id)) {
+      showToast("Este cliente já está na fila.");
+      return;
+    }
+
+    const isRecovery = appointment.status === "na_fila";
+    const confirmed = await confirmAction({
+      title: isRecovery
+        ? "Restaurar entrada na fila?"
+        : "Confirmar chegada?",
+      html: `<strong>${escapeHtml(appointment.clientName)}</strong> entrará no final da fila, respeitando a ordem de chegada.`,
+      confirmText: isRecovery
+        ? "Recolocar na fila"
+        : "Adicionar à fila",
+      icon: "question"
+    });
+
+    if (!confirmed) return;
+
+    let known = knownCustomers.find(
+      item => item.phone === appointment.phone
+    );
+    let createdKnownCustomer = false;
+
+    if (!known) {
+      known = {
+        id: crypto.randomUUID(),
+        name: appointment.clientName,
+        phone: appointment.phone,
+        serviceId: appointment.serviceId,
+        payment: "Pix",
+        notes: "Cadastro criado a partir do aplicativo do cliente.",
+        lastVisit: null
+      };
+      knownCustomers.push(known);
+      createdKnownCustomer = true;
+    }
+
+    const queueEntry = {
+      id: crypto.randomUUID(),
+      knownCustomerId: known.id,
+      appointmentId: appointment.id,
+      name: appointment.clientName,
+      phone: appointment.phone,
+      serviceId: appointment.serviceId,
+      serviceName: appointment.serviceName,
+      value: appointment.value,
+      professional: professional.name.trim(),
+      payment: "A definir",
+      status: "aguardando",
+      createdAt: new Date().toISOString(),
+      startedAt: null
+    };
+
+    queue.push(queueEntry);
+    renderAll();
+
+    try {
+      // Primeiro garante que cliente e fila existam no banco.
+      // Isso evita marcar o agendamento como "na_fila" sem uma fila real.
+      await syncNow({ forcePush: true });
+
+      const arrivalAt =
+        appointment.arrivalAt || new Date().toISOString();
+
+      await updateAppointment(appointment.id, {
+        status: "na_fila",
+        arrivalAt,
+        presenceStatus: "presente",
+        presenceUpdatedAt:
+          appointment.presenceUpdatedAt || arrivalAt
+      });
+
+      activateView("fila");
+      showToast(
+        isRecovery
+          ? "Entrada restaurada. Cliente recolocado na fila."
+          : "Chegada confirmada. Cliente adicionado ao final da fila."
+      );
+    } catch (error) {
+      // Desfaz a inclusão local para impedir estado divergente.
+      queue = queue.filter(item => item.id !== queueEntry.id);
+
+      if (createdKnownCustomer) {
+        knownCustomers = knownCustomers.filter(
+          item => item.id !== known.id
+        );
+      }
+
+      renderAll();
+
+      // Tenta limpar no banco qualquer gravação parcial.
+      try {
+        await syncNow({ forcePush: true });
+      } catch (rollbackError) {
+        console.error(
+          "Falha ao desfazer sincronização parcial:",
+          rollbackError
+        );
+      }
+
+      showToast(
+        `Não foi possível adicionar à fila: ${error.message}`
+      );
+    }
+  }
+});
+
+
+elements.globalSearchButton.addEventListener(
+  "click",
+  openGlobalSearch
+);
+
+elements.closeGlobalSearchButton.addEventListener(
+  "click",
+  closeGlobalSearch
+);
+
+elements.globalSearchInput.addEventListener(
+  "input",
+  renderGlobalSearch
+);
+
+elements.globalSearchSort.addEventListener(
+  "change",
+  renderGlobalSearch
+);
+
+elements.globalSearchFilters.addEventListener(
+  "click",
+  event => {
+    const button = event.target.closest(
+      "[data-search-category]"
+    );
+
+    if (!button) return;
+
+    globalSearchCategory = button.dataset.searchCategory;
+    renderGlobalSearch();
+  }
+);
+
+elements.globalSearchResults.addEventListener(
+  "click",
+  event => {
+    const result = event.target.closest(
+      "[data-global-result-category]"
+    );
+
+    if (!result) return;
+
+    openGlobalSearchResult(
+      result.dataset.globalResultCategory,
+      result.dataset.globalResultId
+    );
+  }
+);
+
+elements.globalSearchDialog.addEventListener(
+  "click",
+  event => {
+    if (event.target === elements.globalSearchDialog) {
+      closeGlobalSearch();
+    }
+  }
+);
+
+document.addEventListener("keydown", event => {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === "k"
+  ) {
+    event.preventDefault();
+    openGlobalSearch();
+    return;
+  }
+
+  if (
+    event.key === "Escape" &&
+    elements.globalSearchDialog.open
+  ) {
+    closeGlobalSearch();
+  }
+});
+
+
 window.addEventListener("beforeinstallprompt", event => {
   event.preventDefault();
   deferredInstallPrompt = event;
@@ -2258,6 +3404,7 @@ if ("serviceWorker" in navigator) {
 
 setInterval(() => {
   renderPremiumDashboard();
+  evaluatePresenceAlert();
   document.querySelectorAll("[data-live-wait]").forEach(element => {
     const customer = queue.find(item => item.id === element.dataset.liveWait);
 
@@ -2303,6 +3450,11 @@ setInterval(() => {
   }
 }, 1000);
 
+
+elements.openPresenceAppointmentsButton.addEventListener(
+  "click",
+  () => activateView("agendamentos")
+);
 
 elements.dashboardTargetButtons.forEach(button => {
   button.addEventListener("click", () => {
@@ -2361,6 +3513,16 @@ document.addEventListener("keydown", event => {
 });
 
 renderAll();
+
+initSupabaseSync({
+  getState: getSyncState,
+  applyState: applySyncState,
+  onAppointments: data => {
+    appointments = data;
+    renderAppointments();
+  },
+  onStatus: updateSyncInterface
+}).catch(error => updateSyncInterface({ state: "error", message: error.message }));
 
 if (!professional.name?.trim()) {
   setTimeout(() => openProfessionalDialog(true), 250);
