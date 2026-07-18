@@ -1,304 +1,264 @@
-# Fila Resenha Boa — versão 1.3
+# Fila Resenha Boa — Supabase + aplicativo do cliente
 
-Aplicativo web individual para o barbeiro controlar sua fila, seus atendimentos, serviços, preços e faturamento.
+Esta versão preserva o funcionamento atual com `localStorage` e adiciona uma camada opcional de Supabase. Sem configuração, o app continua em **Modo local**.
 
-## Novidades da versão 1.3
+## Entregue nesta versão
 
-- Cabeçalho reorganizado:
-  - Painel de atendimento
-  - Profissional: nome configurado
-- Confirmação antes de alterar o profissional
-- Edição de cliente na fila
-- SweetAlert2 para confirmações mais profissionais
-- Proteção do histórico exigindo a palavra `APAGAR`
-- Horário de entrada automático
-- Tempo de espera atualizado em tempo real
-- Botão para iniciar atendimento
-- Cronômetro de atendimento
-- Duração registrada no histórico
-- Filtro do histórico por data
-- Calendário mensal com quantidade de atendimentos e faturamento por dia
-- Resumo diário
-- Totais por forma de pagamento
-- Quantidade e total por serviço
-- Fechamento do dia
-- Impressão do resumo
-- Possibilidade de salvar o relatório como PDF pela janela de impressão
-- Menu de ações compacto em telas pequenas
+- sincronização de profissional, serviços, clientes, fila, atendimentos e fechamentos;
+- migração manual dos dados já existentes no aparelho;
+- atualização em tempo real de fila, serviços e agendamentos;
+- nova seção **Agendamentos** no app do barbeiro;
+- aplicativo do cliente disponível em `/cliente/`;
+- confirmação de chegada que adiciona o cliente ao final da fila;
+- aviso obrigatório: **atendimento por ordem de chegada**;
+- funcionamento local preservado quando a internet ou o Supabase não estiverem disponíveis.
 
-## Funcionalidades principais
+## Configuração
 
-- Cadastro de clientes
-- Nome e WhatsApp
-- Serviços e preços editáveis
-- Forma de pagamento
-- Fila independente por profissional
-- Mensagem pronta no WhatsApp
-- Edição e remoção de clientes
-- Reorganização da fila
-- Histórico local
-- Faturamento diário
-- Ticket médio
-- Tempo médio de atendimento
-- PWA instalável
-- Layout responsivo
-- Identidade visual da Barbearia Resenha Boa
+Consulte `supabase/LEIA-ME-ANTES-DE-USAR.md`.
 
-## Como executar
+## Segurança
 
-A PWA e o Service Worker precisam de um servidor local.
+Esta é uma versão de testes sem autenticação. As políticas SQL de teste devem ser substituídas na fase de login e painel administrativo.
 
-### VS Code com Live Server
-
-1. Extraia o arquivo ZIP.
-2. Abra a pasta no VS Code.
-3. Instale a extensão **Live Server**.
-4. Clique com o botão direito em `index.html`.
-5. Escolha **Open with Live Server**.
-
-### Terminal com Python
-
-Dentro da pasta:
-
-```bash
-python -m http.server 5500
-```
-
-Depois acesse:
-
-```text
-http://localhost:5500
-```
-
-## Como salvar o fechamento em PDF
-
-1. Abra a seção **Fechamento**.
-2. Escolha a data.
-3. Clique em **Imprimir / salvar PDF**.
-4. Na janela de impressão do navegador, selecione **Salvar como PDF**.
-
-## Armazenamento
-
-Os dados continuam no `localStorage` do navegador.
-
-Cada celular possui:
-
-- seu profissional;
-- sua fila;
-- seus serviços e preços;
-- seu histórico;
-- seus fechamentos;
-- seu faturamento.
-
-Limpar os dados do navegador ou trocar de aparelho pode apagar os registros. Esta versão não possui backup online.
-
-## Observação sobre SweetAlert2
-
-As confirmações usam SweetAlert2 por CDN. Na primeira abertura, é necessário estar conectado à internet para carregar a biblioteca. O restante da aplicação funciona com os arquivos locais e o cache da PWA.
+## Autoria
 
 Desenvolvido por Edivandro Lima.
 
 
-## Ajustes da versão 1.3.1
+## Ajustes finais do fluxo Supabase
 
-- Removida a barra de rolagem horizontal das abas no celular.
-- Navegação mobile reorganizada em grade.
-- Calendário com dias clicáveis.
-- Ao tocar em uma data, abre um resumo com:
-  - clientes atendidos;
-  - serviços;
-  - valores;
-  - forma de pagamento;
-  - duração;
-  - horário de finalização.
-- A partir do resumo do dia, é possível:
-  - abrir o histórico já filtrado;
-  - abrir o fechamento da data selecionada.
+Foram implementados:
 
+- forma de pagamento obrigatória ao finalizar;
+- opções Pix, Dinheiro, Débito e Crédito;
+- bloqueio da finalização enquanto o pagamento não for informado;
+- atualização do agendamento para `concluido`;
+- data de conclusão gravada em `concluido_em`;
+- tela Agendamentos atualizada automaticamente;
+- selo verde **Atendido**;
+- agendamentos concluídos preservados no histórico;
+- filtro específico **Atendidos**;
+- remoção dos concluídos da lista de pendentes.
 
-## Ajustes visuais adicionais
+### Banco já criado
 
-- Ampulheta no tempo de espera.
-- Ampulheta animada durante o atendimento.
-- Animação desativada automaticamente quando o usuário prefere menos movimento.
-- Nome **Edivandro Lima** com maior destaque no rodapé.
-- Identificação da versão removida da interface.
-
-
-## Novidades da versão 1.4
-
-- Nova aba **Clientes**.
-- Cadastro permanente de clientes recorrentes.
-- Busca por nome ou telefone.
-- Serviço habitual.
-- Pagamento preferido.
-- Campo de observações.
-- Edição e exclusão do cadastro.
-- Botão **Adicionar à fila**.
-- Confirmação de serviço e pagamento antes de entrar na fila.
-- Bloqueio para evitar o mesmo cliente duas vezes na fila.
-- Registro automático da última visita.
-- Ícone do aplicativo baseado no logotipo da Barbearia Resenha Boa.
-- Ícones PWA padrão, maskable e Apple Touch Icon.
-
-
-## Resumo mensal
-
-O calendário agora mostra automaticamente, para o mês selecionado:
-
-- total de atendimentos;
-- faturamento mensal;
-- ticket médio;
-- tempo médio de atendimento;
-- total por forma de pagamento;
-- quantidade e faturamento por serviço.
-
-Ao navegar para o mês anterior ou seguinte, todos os indicadores são recalculados automaticamente.
-
-
-## Tempo previsto por atendimento
-
-Antes de iniciar, o barbeiro escolhe 15, 30, 45, 60 minutos ou um tempo personalizado entre 1 e 240 minutos.
-
-Durante o atendimento, o sistema exibe o tempo decorrido e a contagem regressiva. Ao chegar a zero, tenta emitir som, vibrar o celular e mostra um alerta com as opções **Finalizar** ou **Adicionar 5 min**.
-
-O alerta é mais confiável quando o aplicativo está aberto ou em primeiro plano. Alguns celulares limitam som e execução quando a tela está bloqueada ou o aplicativo está totalmente fechado.
-
-
-## Efeito visual no botão principal
-
-O botão **Adicionar à fila** recebeu brilho externo, pulso, leve escala no hover e foco acessível. A animação é desativada para usuários que preferem menos movimento.
-
-
-## Perfil e sons personalizados
-
-- Foto média do profissional no cabeçalho.
-- Upload de JPG, PNG ou WebP.
-- Limite de 1 MB.
-- Redimensionamento automático.
-- Foto salva no próprio aparelho.
-- Foto pequena do desenvolvedor no rodapé.
-- Bip suave, bip duplo, campainha digital e alerta forte.
-- Controle de volume.
-- Botão **Testar som**.
-- Opção **Somente vibrar**.
-- Preferências salvas no localStorage.
-
-A imagem `assets/images/edivandro-lima.jpg` é provisória, com as iniciais EL. Para usar a foto real, substitua esse arquivo mantendo o mesmo nome.
-
-
-## Correção da foto do profissional
-
-- Corrigida a atualização da foto no cabeçalho e na prévia.
-- A foto agora é salva imediatamente no localStorage.
-- Arquivos de até 5 MB podem ser selecionados.
-- A imagem é redimensionada e comprimida automaticamente antes de ser armazenada.
-
-
-## Foto do desenvolvedor
-
-A foto real de Edivandro Lima foi adicionada ao rodapé em:
+Antes de testar esta versão, execute uma única vez no SQL Editor:
 
 ```text
-assets/images/edivandro-lima.jpg
+supabase/02-ajuste-status-concluido.sql
 ```
 
-A imagem foi recortada em formato quadrado e otimizada para carregamento rápido.
+Depois substitua os arquivos do projeto e limpe o cache da PWA.
 
 
-## Cabeçalho e configurações reorganizados
+## Presença do cliente e foto do profissional
 
-- Logotipo da barbearia à esquerda.
-- Foto do profissional ao lado do logotipo.
-- Nome do profissional com maior destaque.
-- Removido o botão grande **Alterar profissional** do cabeçalho.
-- Edição do nome movida para **Configurações do profissional**.
-- Edição e remoção da foto permanecem apenas em Configurações.
-- Cabeçalho mobile mais compacto.
-- Texto do limite da foto atualizado para 5 MB.
+Esta versão inclui:
 
+- foto do profissional no aplicativo do cliente;
+- painel para acompanhar o último pré-agendamento;
+- botão **Estou a caminho**;
+- botão **Já estou na barbearia**;
+- atualização em tempo real do status de presença;
+- aviso interno quando a estimativa estiver entre 10 e 5 minutos;
+- alerta no aplicativo do barbeiro quando o cliente ainda não confirmou presença;
+- nenhum cliente é removido ou reposicionado automaticamente;
+- a confirmação do cliente não adiciona diretamente à fila;
+- o barbeiro continua responsável por validar a chegada;
+- a regra de ordem de chegada permanece visível.
 
-## Dashboard premium
+### Atualização obrigatória do banco
 
-A tela inicial foi redesenhada com aparência de aplicativo comercial:
+Execute uma única vez:
 
-- saudação personalizada;
-- resumo inteligente do dia;
-- quatro indicadores principais;
-- próximo cliente em destaque;
-- atendimento atual com cronômetro e barra de progresso;
-- gráfico dos últimos sete dias;
-- recebimentos por forma de pagamento;
-- ranking de serviços;
-- clientes frequentes;
-- formulário rápido para adicionar à fila;
-- navegação inferior no celular;
-- identidade visual da Barbearia Resenha Boa;
-- rodapé preservado com a foto e autoria de Edivandro Lima.
+```text
+supabase/03-presenca-e-aviso-proximidade.sql
+```
 
-A edição do nome e da foto do profissional permanece somente em **Configurações**.
+### Limite atual do aviso
+
+O aviso desta etapa funciona **dentro do aplicativo aberto**. Notificações push em segundo plano e confirmação por QR Code foram documentadas como fase futura e ainda não estão ativadas.
 
 
-## Correção para nomes longos no celular
+## Cards dos cinco profissionais e alerta corrigido
 
-- O nome do cliente agora pode ocupar toda a largura do card.
-- Nomes longos quebram para a linha seguinte sem serem cortados.
-- No modo vertical, o selo de status aparece abaixo do nome.
-- O comportamento no computador permanece organizado.
+### Aplicativo dos barbeiros
 
+- Cada aparelho continua associado ao perfil configurado nele.
+- Ao alterar nome ou foto em **Configurações**, o perfil é sincronizado com o Supabase.
+- A mensagem de confirmação informa que a foto será enviada ao aplicativo do cliente.
 
-## Correções mobile adicionais
+### Aplicativo do cliente
 
-- Calendário voltou a ficar acessível pelo botão **Mais** na barra inferior.
-- Menu **Mais** reúne Serviços, Calendário, Fechamento e Configurações.
-- Menu **Mais ações** agora abre dentro da largura da tela, sem corte lateral.
-- Cursores de clique foram aplicados aos elementos interativos no computador.
-- Foto do profissional ficou no canto esquerdo e o logotipo da barbearia no canto direito.
-- Cache da PWA atualizado.
+- Todos os profissionais ativos aparecem automaticamente em cards.
+- Não é necessário abrir uma lista para visualizar as fotos.
+- Cada card exibe o nome e até três serviços do profissional.
+- Ao tocar no card, somente os serviços daquele barbeiro ficam disponíveis.
+- Quando não existe foto cadastrada, a área da imagem permanece vazia e neutra.
+- Alterações de nome, foto e serviços são recebidas em tempo real.
 
+### Alerta do profissional
 
-## Ajustes no dashboard mobile
+O alerta foi corrigido para:
 
-- O logotipo da Barbearia Resenha Boa permanece visível no canto direito do card de saudação.
-- O logotipo recebeu tamanho adaptativo para telas menores.
-- O menu **Mais** agora possui uma opção explícita **Recolher menu**.
-- O botão **X**, o toque fora da aba e o próprio botão **Mais** continuam fechando o menu.
+- funcionar em qualquer tela do aplicativo do barbeiro;
+- aparecer quando o atendimento atual entra nos últimos 10 minutos;
+- ficar urgente quando restam 5 minutos ou menos;
+- localizar agendamentos do dia sem confirmação de presença;
+- tocar o som configurado e vibrar uma única vez por faixa;
+- abrir diretamente a tela **Agendamentos**;
+- nunca remover ou reposicionar clientes automaticamente.
 
-
-## Correção do menu Mais ações
-
-- Adicionado o botão **Voltar** dentro do menu de ações de cada cliente.
-- O botão recolhe imediatamente a aba no celular e no computador.
-- Tocar fora do menu também fecha a aba.
-- A tecla `Esc` fecha o menu no computador.
-- Ao abrir um novo menu, qualquer outro menu de ações aberto é recolhido.
+Esta atualização não exige uma nova migração SQL.
 
 
-## Refinamento do card de saudação
+## Fotos compactas e lembrete do cliente
 
-- Mantido somente o logotipo principal no cabeçalho.
-- Removido o logotipo destacado do card de saudação.
-- Adicionada uma marca-d'água maior e parcialmente cortada no canto.
-- A marca-d'água utiliza baixa opacidade, sem borda branca e sem competir com o conteúdo.
-- O comportamento foi ajustado separadamente para computador e celular.
+Esta versão acrescenta:
+
+- fotos circulares e compactas nos cards dos profissionais;
+- 76 px no desktop e 60 px no celular;
+- enquadramento ajustado para destacar melhor o rosto;
+- card sem foto continua com área neutra e vazia;
+- lembrete persistente no aplicativo do cliente;
+- alerta amarelo quando restam até 10 minutos;
+- alerta vermelho quando restam 5 minutos ou menos;
+- botões **Estou a caminho** e **Já estou na barbearia** dentro do lembrete;
+- som discreto e vibração quando permitidos pelo navegador;
+- somente um aviso por faixa de tempo, evitando repetição contínua;
+- lembrete removido imediatamente após a confirmação.
+
+O lembrete funciona com o aplicativo aberto ou ativo no navegador.
+Notificações com o aplicativo fechado continuam reservadas para a fase de Push Notifications.
+
+Esta atualização não exige nova migração SQL.
 
 
-## Feedback de salvamento e retorno ao atendimento
+## Refinamento do acompanhamento e do alerta
 
-- Ao salvar as configurações de som, o botão muda temporariamente para **Configurações salvas**.
-- Uma confirmação leve aparece abaixo do formulário.
-- O formulário recebe uma animação discreta, sem interromper o uso.
-- As configurações são gravadas imediatamente no `localStorage`.
-- Ao iniciar um atendimento, o aplicativo volta automaticamente para a tela **Fila**.
-- O cliente em atendimento é levado para a área visível e recebe um destaque temporário.
-- Animações respeitam a preferência de movimento reduzido do aparelho.
+### Aplicativo do cliente
+
+- Atendimentos concluídos exibem **Atendido** e **Presença confirmada**.
+- Os botões **Estou a caminho** e **Já estou na barbearia** são removidos de forma obrigatória após a conclusão.
+- O lembrete de proximidade desaparece imediatamente depois de selecionar **Estou a caminho** ou **Já estou na barbearia**.
+- Quando o cliente começa a preencher um novo pré-agendamento, o acompanhamento concluído anterior é descartado da tela e do armazenamento local.
+- O histórico do atendimento continua preservado no Supabase.
+
+### Aplicativo do barbeiro
+
+- O alerta de falta de confirmação agora usa `position: fixed`.
+- Ele permanece visível em qualquer tela e em qualquer posição da rolagem.
+- O alerta continua amarelo até a faixa urgente e vermelho com 5 minutos ou menos.
+- O botão **Ver agendamentos** permanece disponível.
+
+Esta atualização não exige nova migração SQL.
 
 
-## Correção do início de atendimento
+## Correção crítica — agendamento marcado como Na fila com fila vazia
 
-- O botão **Iniciar atendimento** da tela de tempo previsto agora executa a ação diretamente.
-- Removida a segunda confirmação que podia ficar escondida atrás da janela de duração.
-- Depois de iniciar, o aplicativo abre automaticamente a tela **Início**.
-- O card **Atendimento atual** é centralizado e recebe um destaque discreto.
-- O botão apresenta o texto **Iniciando...** para evitar dúvidas e cliques repetidos.
-- O cronômetro e o tempo restante continuam funcionando normalmente.
+A correção altera o fluxo de confirmação de chegada:
+
+1. o cliente conhecido é salvo;
+2. os serviços e clientes são sincronizados antes da fila;
+3. a entrada da fila é confirmada no Supabase;
+4. somente depois o agendamento recebe o status `na_fila`;
+5. em caso de erro, a inclusão local é desfeita.
+
+A tela de agendamentos também identifica registros antigos que estejam
+marcados como **Na fila**, mas sem uma entrada correspondente. Nesses casos,
+é exibido o botão **Recolocar na fila**.
+
+Esta atualização não exige uma nova migração SQL.
+
+
+## Ajustes de acabamento — alertas e Pedido enviado
+
+### Aplicativo do cliente
+
+- O aviso interno duplicado foi removido.
+- O lembrete flutuante permanece como único aviso de proximidade.
+- O cartão **Pedido enviado** agora orienta o cliente a usar os botões
+  no acompanhamento acima.
+- O cartão **Pedido enviado** é ocultado automaticamente assim que o cliente
+  marca **Estou a caminho**, **Já estou na barbearia**, entra na fila, é
+  atendido ou tem o pedido cancelado.
+
+### Aplicativo do barbeiro
+
+- O alerta duplicado dentro da tela **Agendamentos** foi removido.
+- O alerta global fixo permanece como único alerta visual.
+- Som, vibração, mudança de cor e botão **Ver agendamentos** foram preservados.
+
+Esta atualização não exige nova migração SQL.
+
+
+## Fluxo simplificado de presença
+
+O estado **Estou a caminho** foi removido das novas operações.
+
+Fluxo atual:
+
+```text
+Agendado
+→ Confirmar presença
+→ Validação do barbeiro
+→ Na fila
+→ Em atendimento
+→ Atendido
+```
+
+O pré-agendamento continua vinculado diretamente ao profissional escolhido.
+A confirmação do cliente informa que ele chegou, mas a entrada na fila ainda
+é validada pelo barbeiro para preservar a ordem real de chegada.
+
+### Atualização obrigatória do banco
+
+Execute uma única vez:
+
+```text
+supabase/04-fluxo-presenca-simplificado.sql
+```
+
+A migração converte registros antigos com `a_caminho` para
+`nao_confirmado` e remove esse estado da restrição do banco.
+
+## Busca global e organização de dados
+
+O aplicativo do barbeiro possui uma **Central de dados** acessível pelo botão
+**Busca global** no cabeçalho ou pelo atalho `Ctrl + K`.
+
+A busca cobre:
+
+- fila atual;
+- agendamentos;
+- clientes cadastrados;
+- histórico de atendimentos;
+- serviços.
+
+Os dados podem ser:
+
+- filtrados por categoria;
+- ordenados por relevância;
+- ordenados pelos registros mais recentes;
+- organizados em ordem alfabética.
+
+Ao selecionar um resultado, o sistema abre a área correspondente e destaca
+o registro localizado.
+
+
+## Refinamento — uma única ação de confirmação
+
+No aplicativo do cliente:
+
+- quando o lembrete flutuante de proximidade abre, o botão
+  **Confirmar presença** do card de acompanhamento é ocultado;
+- o lembrete flutuante passa a ser o único ponto de confirmação;
+- quando o lembrete fecha sem confirmação, o botão normal do card é
+  restaurado automaticamente;
+- após confirmar presença, ambos permanecem ocultos porque a ação já
+  foi concluída;
+- o comportamento também é aplicado aos estados **Na fila** e
+  **Atendido**.
+
+Esta atualização não exige nova migração SQL.

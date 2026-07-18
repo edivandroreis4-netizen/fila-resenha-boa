@@ -1,9 +1,11 @@
-const CACHE_NAME = "fila-resenha-boa-dashboard-premium-inicio-automatico-v1";
+const CACHE_NAME = "fila-resenha-boa-busca-global-presenca-v1";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/app.js",
+  "./js/supabase-config.js",
+  "./js/supabase-sync.js",
   "./manifest.json",
   "./assets/images/logo-resenha-boa.jpg",
   "./assets/images/edivandro-lima.jpg",

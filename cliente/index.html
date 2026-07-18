@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#161512" />
+  <meta name="description" content="Pré-agendamento de atendimento na Barbearia Resenha Boa." />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="../assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="./css/style.css" />
+  <title>Agendar — Barbearia Resenha Boa</title>
+</head>
+<body>
+
+  <aside
+    id="clientPresenceReminder"
+    class="client-presence-reminder"
+    role="alertdialog"
+    aria-live="assertive"
+    aria-labelledby="clientPresenceReminderTitle"
+    hidden
+  >
+    <div class="client-presence-reminder__header">
+      <span class="client-presence-reminder__icon" aria-hidden="true">!</span>
+      <div>
+        <strong id="clientPresenceReminderTitle">
+          Confirme sua presença
+        </strong>
+        <p id="clientPresenceReminderText"></p>
+      </div>
+    </div>
+
+    <div class="client-presence-reminder__actions">
+<button
+        id="reminderAtBarbershopButton"
+        class="client-presence-reminder__button client-presence-reminder__button--primary"
+        type="button"
+      >
+        Confirmar presença
+      </button>
+    </div>
+
+    <small>
+      Esta é uma estimativa. O atendimento continua respeitando a ordem real de chegada.
+    </small>
+  </aside>
+
+  <header class="client-header">
+    <img src="../assets/images/logo-resenha-boa.jpg" alt="Barbearia Resenha Boa" />
+    <div>
+      <p>Barbearia Resenha Boa</p>
+      <h1>Pré-agendamento</h1>
+    </div>
+  </header>
+
+  <main class="client-container">
+    <section class="client-hero">
+      <p class="eyebrow">Organize sua visita</p>
+      <h2>Escolha o profissional e sua preferência de horário</h2>
+      <p>O pedido será enviado diretamente para o aplicativo do barbeiro.</p>
+    </section>
+
+    <aside class="arrival-alert">
+      <span>⌛</span>
+      <div>
+        <strong>Atendimento por ordem de chegada</strong>
+        <p>O horário escolhido é uma preferência e não reserva posição. Ao chegar, confirme sua presença para entrar na fila.</p>
+      </div>
+    </aside>
+
+
+    <section id="bookingTracking" class="tracking-card" hidden aria-live="polite">
+      <div class="tracking-card__header">
+        <div class="tracking-professional">
+          <img
+            id="trackingProfessionalPhoto"
+            src="../assets/images/professional-placeholder.svg"
+            alt=""
+          />
+          <div>
+            <p class="eyebrow">Acompanhe seu pedido</p>
+            <h2 id="trackingProfessionalName">Profissional</h2>
+          </div>
+        </div>
+        <span id="trackingBookingStatus" class="tracking-status">Agendado</span>
+      </div>
+
+      <div class="tracking-details">
+        <p><strong>Cliente:</strong> <span id="trackingClientName"></span></p>
+        <p><strong>Serviço:</strong> <span id="trackingServiceName"></span></p>
+        <p><strong>Preferência:</strong> <span id="trackingPreference"></span></p>
+        <p><strong>Presença:</strong> <span id="trackingPresenceText">Ainda não confirmada</span></p>
+      </div>
+
+      
+
+      <div class="presence-actions" id="presenceActions">
+<button id="atBarbershopButton" class="presence-button presence-button--primary" type="button">
+          Confirmar presença
+        </button>
+      </div>
+
+      <p id="trackingNote" class="tracking-note">
+        A confirmação informa o profissional, mas não reserva posição. A entrada na fila é validada pelo barbeiro e respeita a ordem de chegada.
+      </p>
+    </section>
+
+    <section class="booking-card">
+      <div id="connectionMessage" class="connection-message">Conectando...</div>
+      <form id="bookingForm" class="booking-form">
+        <section
+          class="professional-picker field--full"
+          aria-labelledby="professionalPickerTitle"
+        >
+          <div class="professional-picker__header">
+            <div>
+              <span class="eyebrow">Equipe Resenha Boa</span>
+              <h3 id="professionalPickerTitle">Escolha seu profissional</h3>
+            </div>
+            <small>As fotos são atualizadas pelos próprios barbeiros.</small>
+          </div>
+
+          <div
+            id="professionalCards"
+            class="professional-cards"
+            role="listbox"
+            aria-label="Profissionais disponíveis"
+          >
+            <p class="professional-cards__loading">Carregando profissionais...</p>
+          </div>
+
+          <select
+            id="professionalSelect"
+            class="professional-select-native"
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            <option value="">Selecione</option>
+          </select>
+
+          <p id="professionalSelectionHint" class="professional-selection-hint">
+            Toque em um card para selecionar o barbeiro.
+          </p>
+        </section>
+        <div class="field">
+          <label for="serviceSelect">Serviço</label>
+          <select id="serviceSelect" required><option value="">Selecione o profissional primeiro</option></select>
+        </div>
+        <div class="field">
+          <label for="bookingDate">Data</label>
+          <input id="bookingDate" type="date" required />
+        </div>
+        <div class="field">
+          <label for="bookingTime">Horário de preferência</label>
+          <select id="bookingTime" required></select>
+        </div>
+        <div class="field">
+          <label for="clientName">Seu nome</label>
+          <input id="clientName" type="text" minlength="2" maxlength="80" autocomplete="name" required />
+        </div>
+        <div class="field">
+          <label for="clientPhone">WhatsApp</label>
+          <input id="clientPhone" type="tel" inputmode="numeric" maxlength="15" placeholder="(71) 99999-9999" required />
+        </div>
+        <div class="field field--full">
+          <label for="bookingNotes">Observação (opcional)</label>
+          <textarea id="bookingNotes" rows="3" maxlength="240" placeholder="Ex.: preferência de corte"></textarea>
+        </div>
+        <label class="consent field--full">
+          <input id="arrivalConsent" type="checkbox" required />
+          <span>Estou ciente de que o atendimento ocorre por ordem de chegada.</span>
+        </label>
+        <button class="submit-button field--full" id="submitBookingButton" type="submit">Enviar pré-agendamento</button>
+      </form>
+    </section>
+
+    <section id="bookingConfirmation" class="confirmation" hidden>
+      <span class="confirmation__icon">✓</span>
+      <h2>Pedido enviado</h2>
+      <p id="confirmationText"></p>
+      <strong id="confirmationInstruction">Ao chegar à barbearia, use Confirmar presença no acompanhamento acima.</strong>
+      <button id="newBookingButton" type="button">Fazer outro agendamento</button>
+    </section>
+  </main>
+
+  <footer class="client-footer">
+    <p>Atendimento por ordem de chegada</p>
+    <div><img src="../assets/images/edivandro-lima.jpg" alt="Edivandro Lima" /><span>Desenvolvido por <strong>Edivandro Lima</strong></span></div>
+  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
