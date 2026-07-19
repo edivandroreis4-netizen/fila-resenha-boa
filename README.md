@@ -262,3 +262,77 @@ No aplicativo do cliente:
   **Atendido**.
 
 Esta atualização não exige nova migração SQL.
+
+
+## Posição do cliente na fila em tempo real
+
+O aplicativo do cliente agora mostra a posição depois que o barbeiro
+valida a chegada e adiciona o agendamento à fila.
+
+Informações exibidas:
+
+- posição numérica;
+- quantidade de pessoas à frente;
+- indicação **Você é o próximo**;
+- estado **Seu atendimento foi iniciado**;
+- horário da última atualização.
+
+A posição considera somente a fila do profissional escolhido e utiliza
+a ordem de `entrada_em`. Nenhum nome, telefone ou serviço de outro cliente
+é exibido.
+
+### Atualização automática
+
+A posição é recalculada:
+
+- por eventos Realtime do Supabase na tabela `fila`;
+- a cada 15 segundos como mecanismo de segurança;
+- quando o agendamento muda de estado.
+
+### Alerta de primeira posição
+
+Ao chegar à primeira posição, o cliente recebe:
+
+- alerta visual fixo;
+- mensagem na tela;
+- vibração, quando permitida pelo aparelho;
+- aviso sonoro, quando permitido pelo navegador.
+
+Esta implementação usa a tabela `fila` existente e não exige nova
+migração SQL.
+
+
+## Cancelamento pelo cliente
+
+Esta versão inclui **Cancelar solicitação** antes da fila e **Sair da fila** enquanto o cliente ainda aguarda. O cancelamento preserva o agendamento como histórico, remove somente a entrada transitória da fila e dispara o recálculo das posições pelo Supabase Realtime.
+
+Antes de testar, execute `supabase/05-cancelamento-cliente-e-fila.sql`. O atendimento em andamento não pode ser cancelado pelo aplicativo do cliente.
+
+
+## Controle de expediente e disponibilidade
+
+Esta versão adiciona três estados por profissional:
+
+- `recebendo_clientes`;
+- `fechado_novos_clientes`;
+- `expediente_encerrado`.
+
+O card do profissional permanece visível no aplicativo do cliente, mas
+somente o estado `recebendo_clientes` permite criar novas solicitações.
+
+A criação do agendamento utiliza a função
+`criar_agendamento_cliente`, que valida novamente o status no Supabase.
+Isso impede um pedido quando o profissional encerra o expediente entre a
+seleção do card e o envio do formulário.
+
+Antes dos testes, execute:
+
+```text
+supabase/06-expediente-e-disponibilidade.sql
+```
+
+Consulte também:
+
+```text
+TESTE-EXPEDIENTE-E-DISPONIBILIDADE.md
+```

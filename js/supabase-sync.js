@@ -52,7 +52,7 @@ async function replaceRows(table, rows, includeProfessional = true) {
   }
 }
 
-function toRemote(state) {
+function toRemote(state, cancelledAppointmentIds = new Set()) {
   const barbearia = SUPABASE_CONFIG.barbershopId;
   const profissional = state.professional.id;
 
@@ -63,6 +63,15 @@ function toRemote(state) {
       nome: state.professional.name || "Profissional",
       foto_base64: state.professional.photo || null,
       ativo: true,
+      status_expediente:
+        state.professional.statusExpediente ||
+        "expediente_encerrado",
+      expediente_data:
+        state.professional.expedienteData || null,
+      expediente_iniciado_em:
+        state.professional.expedienteIniciadoEm || null,
+      expediente_encerrado_em:
+        state.professional.expedienteEncerradoEm || null,
       atualizado_em: new Date().toISOString()
     },
     services: state.services.map(item => ({
@@ -87,25 +96,32 @@ function toRemote(state) {
       ultima_visita: item.lastVisit || null,
       atualizado_em: new Date().toISOString()
     })),
-    queue: state.queue.map(item => ({
-      id: item.id,
-      barbearia_id: barbearia,
-      profissional_id: profissional,
-      cliente_id: item.knownCustomerId || null,
-      agendamento_id: item.appointmentId || null,
-      nome_cliente: item.name,
-      telefone: item.phone,
-      servico_id: item.serviceId || null,
-      servico_nome: item.serviceName,
-      valor: Number(item.value || 0),
-      pagamento: item.payment || null,
-      status: item.status,
-      entrada_em: item.createdAt,
-      iniciado_em: item.startedAt || null,
-      duracao_prevista_minutos: item.plannedDurationMinutes || null,
-      previsao_fim_em: item.expectedEndAt || null,
-      atualizado_em: new Date().toISOString()
-    })),
+    queue: state.queue
+      .filter(
+        item =>
+          !item.appointmentId ||
+          !cancelledAppointmentIds.has(item.appointmentId)
+      )
+      .map(item => ({
+        id: item.id,
+        barbearia_id: barbearia,
+        profissional_id: profissional,
+        cliente_id: item.knownCustomerId || null,
+        agendamento_id: item.appointmentId || null,
+        nome_cliente: item.name,
+        telefone: item.phone,
+        servico_id: item.serviceId || null,
+        servico_nome: item.serviceName,
+        valor: Number(item.value || 0),
+        pagamento: item.payment || null,
+        status: item.status,
+        entrada_em: item.createdAt,
+        iniciado_em: item.startedAt || null,
+        duracao_prevista_minutos:
+          item.plannedDurationMinutes || null,
+        previsao_fim_em: item.expectedEndAt || null,
+        atualizado_em: new Date().toISOString()
+      })),
     history: state.history.map(item => ({
       id: item.id,
       barbearia_id: barbearia,
@@ -139,12 +155,34 @@ function toRemote(state) {
 
 function fromRemote(raw, current) {
   const professionalRow = raw.professional[0];
+  const cancelledAppointmentIds = new Set(
+    (raw.appointments || [])
+      .filter(item => item.status === "cancelado")
+      .map(item => item.id)
+  );
+
   return {
     professional: professionalRow ? {
       ...current.professional,
       id: professionalRow.id,
       name: professionalRow.nome,
-      photo: professionalRow.foto_base64 || current.professional.photo || ""
+      photo: professionalRow.foto_base64 || current.professional.photo || "",
+      statusExpediente:
+        professionalRow.status_expediente ||
+        current.professional.statusExpediente ||
+        "expediente_encerrado",
+      expedienteData:
+        professionalRow.expediente_data ||
+        current.professional.expedienteData ||
+        null,
+      expedienteIniciadoEm:
+        professionalRow.expediente_iniciado_em ||
+        current.professional.expedienteIniciadoEm ||
+        null,
+      expedienteEncerradoEm:
+        professionalRow.expediente_encerrado_em ||
+        current.professional.expedienteEncerradoEm ||
+        null
     } : current.professional,
     services: raw.services.map(item => ({
       id: item.id,
@@ -161,23 +199,32 @@ function fromRemote(raw, current) {
       notes: item.observacoes || "",
       lastVisit: item.ultima_visita || null
     })),
-    queue: raw.queue.map(item => ({
-      id: item.id,
-      knownCustomerId: item.cliente_id,
-      appointmentId: item.agendamento_id,
-      name: item.nome_cliente,
-      phone: item.telefone,
-      serviceId: item.servico_id,
-      serviceName: item.servico_nome,
-      value: Number(item.valor || 0),
-      professional: professionalRow?.nome || current.professional.name,
-      payment: item.pagamento || "A definir",
-      status: item.status,
-      createdAt: item.entrada_em,
-      startedAt: item.iniciado_em,
-      plannedDurationMinutes: item.duracao_prevista_minutos,
-      expectedEndAt: item.previsao_fim_em
-    })),
+    queue: raw.queue
+      .filter(
+        item =>
+          !item.agendamento_id ||
+          !cancelledAppointmentIds.has(item.agendamento_id)
+      )
+      .map(item => ({
+        id: item.id,
+        knownCustomerId: item.cliente_id,
+        appointmentId: item.agendamento_id,
+        name: item.nome_cliente,
+        phone: item.telefone,
+        serviceId: item.servico_id,
+        serviceName: item.servico_nome,
+        value: Number(item.valor || 0),
+        professional:
+          professionalRow?.nome ||
+          current.professional.name,
+        payment: item.pagamento || "A definir",
+        status: item.status,
+        createdAt: item.entrada_em,
+        startedAt: item.iniciado_em,
+        plannedDurationMinutes:
+          item.duracao_prevista_minutos,
+        expectedEndAt: item.previsao_fim_em
+      })),
     history: raw.history.map(item => ({
       id: item.id,
       knownCustomerId: item.cliente_id,
@@ -224,28 +271,57 @@ function mapAppointments(rows) {
     presenceUpdatedAt: item.presenca_atualizada_em || null,
     proximityAlertAt: item.aviso_proximidade_em || null,
     createdAt: item.criado_em,
-    arrivalAt: item.chegada_confirmada_em || null
+    arrivalAt: item.chegada_confirmada_em || null,
+    cancelledAt: item.cancelado_em || null,
+    cancelledBy: item.cancelado_por || null,
+    cancellationReason: item.cancelamento_motivo || ""
   })).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
 async function pullRaw() {
   const pid = professionalId();
-  const [professional, services, customers, queue, history, closures] = await Promise.all([
-    client.from("profissionais").select("*").eq("id", pid),
+
+  const [
+    professional,
+    services,
+    customers,
+    queue,
+    history,
+    closures,
+    appointmentsResult
+  ] = await Promise.all([
+    client
+      .from("profissionais")
+      .select("*")
+      .eq("id", pid),
     selectRows("servicos"),
     selectRows("clientes"),
     selectRows("fila"),
     selectRows("atendimentos"),
-    selectRows("fechamentos")
+    selectRows("fechamentos"),
+    client
+      .from("agendamentos")
+      .select("*")
+      .eq(
+        "barbearia_id",
+        SUPABASE_CONFIG.barbershopId
+      )
+      .eq("profissional_id", pid)
   ]);
+
   if (professional.error) throw professional.error;
+  if (appointmentsResult.error) {
+    throw appointmentsResult.error;
+  }
+
   return {
     professional: professional.data || [],
     services,
     customers,
     queue,
     history,
-    closures
+    closures,
+    appointments: appointmentsResult.data || []
   };
 }
 
@@ -255,9 +331,53 @@ function remoteHasData(raw) {
 
 async function pushAll() {
   if (!client || !context || suppressPush) return;
+
   report("syncing", "Enviando alterações...");
+
   const state = context.getState();
-  const rows = toRemote(state);
+  const { data: cancelledAppointments, error } =
+    await client
+      .from("agendamentos")
+      .select("id")
+      .eq(
+        "barbearia_id",
+        SUPABASE_CONFIG.barbershopId
+      )
+      .eq("profissional_id", professionalId())
+      .eq("status", "cancelado");
+
+  if (error) throw error;
+
+  const cancelledAppointmentIds = new Set(
+    (cancelledAppointments || []).map(item => item.id)
+  );
+
+  const safeQueue = (state.queue || []).filter(
+    item =>
+      !item.appointmentId ||
+      !cancelledAppointmentIds.has(item.appointmentId)
+  );
+
+  if (safeQueue.length !== (state.queue || []).length) {
+    suppressPush = true;
+
+    context.applyState({
+      ...state,
+      queue: safeQueue
+    });
+
+    queueMicrotask(() => {
+      suppressPush = false;
+    });
+  }
+
+  const rows = toRemote(
+    {
+      ...state,
+      queue: safeQueue
+    },
+    cancelledAppointmentIds
+  );
 
   const { error: professionalError } = await client.from("profissionais").upsert(rows.professional, { onConflict: "id" });
   if (professionalError) throw professionalError;
@@ -277,9 +397,15 @@ async function pullAll({ apply = true } = {}) {
   if (!client || !context) return null;
   report("syncing", "Buscando dados...");
   const raw = await pullRaw();
+  lastAppointments = mapAppointments(
+    raw.appointments || []
+  );
+
   if (apply && remoteHasData(raw)) {
     suppressPush = true;
-    context.applyState(fromRemote(raw, context.getState()));
+    context.applyState(
+      fromRemote(raw, context.getState())
+    );
     queueMicrotask(() => { suppressPush = false; });
   }
   await refreshAppointments();
@@ -287,17 +413,79 @@ async function pullAll({ apply = true } = {}) {
   return raw;
 }
 
+function purgeCancelledQueueFromState(
+  cancelledAppointmentIds
+) {
+  if (!cancelledAppointmentIds.size || !context) {
+    return false;
+  }
+
+  const currentState = context.getState();
+  const currentQueue = currentState.queue || [];
+  const filteredQueue = currentQueue.filter(
+    item =>
+      !item.appointmentId ||
+      !cancelledAppointmentIds.has(item.appointmentId)
+  );
+
+  if (filteredQueue.length === currentQueue.length) {
+    return false;
+  }
+
+  suppressPush = true;
+
+  context.applyState({
+    ...currentState,
+    queue: filteredQueue
+  });
+
+  queueMicrotask(() => {
+    suppressPush = false;
+  });
+
+  return true;
+}
+
 async function refreshAppointments() {
   if (!client || !professionalId()) return;
-  let query = client.from("agendamentos")
+
+  const query = client
+    .from("agendamentos")
     .select("*")
     .eq("barbearia_id", SUPABASE_CONFIG.barbershopId)
     .eq("profissional_id", professionalId())
     .order("data_agendada", { ascending: true })
     .order("hora_preferida", { ascending: true });
+
   const { data, error } = await query;
   if (error) throw error;
+
   lastAppointments = mapAppointments(data || []);
+
+  const cancelledAppointmentIds = new Set(
+    lastAppointments
+      .filter(item => item.status === "cancelado")
+      .map(item => item.id)
+  );
+
+  if (cancelledAppointmentIds.size && context) {
+    purgeCancelledQueueFromState(
+      cancelledAppointmentIds
+    );
+
+    const { error: cleanupError } = await client
+      .from("fila")
+      .delete()
+      .eq("profissional_id", professionalId())
+      .in(
+        "agendamento_id",
+        [...cancelledAppointmentIds]
+      )
+      .in("status", ["aguardando", "chamado"]);
+
+    if (cleanupError) throw cleanupError;
+  }
+
   context?.onAppointments?.(lastAppointments);
 }
 
@@ -309,6 +497,7 @@ function subscribeRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos", filter: `profissional_id=eq.${pid}` }, () => refreshAppointments().catch(handleError))
     .on("postgres_changes", { event: "*", schema: "public", table: "fila", filter: `profissional_id=eq.${pid}` }, () => pullAll().catch(handleError))
     .on("postgres_changes", { event: "*", schema: "public", table: "servicos", filter: `profissional_id=eq.${pid}` }, () => pullAll().catch(handleError))
+    .on("postgres_changes", { event: "*", schema: "public", table: "profissionais", filter: `id=eq.${pid}` }, () => pullAll().catch(handleError))
     .subscribe(status => {
       if (status === "SUBSCRIBED") report("connected", "Sincronização em tempo real ativa");
     });
@@ -346,6 +535,9 @@ export async function updateAppointment(id, patch) {
   if (patch.presenceUpdatedAt !== undefined) remotePatch.presenca_atualizada_em = patch.presenceUpdatedAt;
   if (patch.proximityAlertAt !== undefined) remotePatch.aviso_proximidade_em = patch.proximityAlertAt;
   if (patch.notes !== undefined) remotePatch.observacao = patch.notes;
+  if (patch.cancelledAt !== undefined) remotePatch.cancelado_em = patch.cancelledAt;
+  if (patch.cancelledBy !== undefined) remotePatch.cancelado_por = patch.cancelledBy;
+  if (patch.cancellationReason !== undefined) remotePatch.cancelamento_motivo = patch.cancellationReason;
   remotePatch.atualizado_em = new Date().toISOString();
   const { error } = await client.from("agendamentos").update(remotePatch).eq("id", id);
   if (error) throw error;

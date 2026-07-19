@@ -150,6 +150,60 @@
         </div>
       </aside>
 
+
+      <section
+        id="expedienteControl"
+        class="expediente-control"
+        aria-labelledby="expedienteStatusTitle"
+      >
+        <div class="expediente-control__status">
+          <span
+            id="expedienteStatusBadge"
+            class="expediente-status-badge"
+          >
+            Verificando expediente
+          </span>
+
+          <div>
+            <p class="section-heading__eyebrow">Disponibilidade</p>
+            <h2 id="expedienteStatusTitle">Status do expediente</h2>
+            <p id="expedienteStatusText">
+              Defina se está recebendo novos clientes.
+            </p>
+          </div>
+        </div>
+
+        <div class="expediente-control__actions">
+          <button
+            id="startExpedienteButton"
+            class="button button--success"
+            type="button"
+          >
+            Iniciar expediente
+          </button>
+
+          <button
+            id="closeNewClientsButton"
+            class="button button--warning"
+            type="button"
+          >
+            Fechar para novos clientes
+          </button>
+
+          <button
+            id="endExpedienteButton"
+            class="button button--danger-outline"
+            type="button"
+          >
+            Encerrar expediente
+          </button>
+        </div>
+
+        <p id="expedienteQueueNotice" class="expediente-control__notice">
+          A fila atual será preservada ao bloquear novos pedidos.
+        </p>
+      </section>
+
       <div class="premium-section-heading">
         <div>
           <p class="section-heading__eyebrow">Visão geral</p>

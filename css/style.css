@@ -3002,3 +3002,127 @@ button,
     white-space: normal;
   }
 }
+
+
+/* Controle de expediente */
+.expediente-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem 0 1.35rem;
+  padding: clamp(1rem, 3vw, 1.35rem);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(135deg, #25231f, #151411);
+  color: #fff;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.16);
+}
+
+.expediente-control.is-open {
+  border-color: rgba(59, 190, 120, 0.45);
+  background: linear-gradient(135deg, #103c29, #17251f);
+}
+
+.expediente-control.is-limited {
+  border-color: rgba(233, 185, 69, 0.52);
+  background: linear-gradient(135deg, #4a3610, #251f14);
+}
+
+.expediente-control.is-closed {
+  border-color: rgba(205, 88, 88, 0.45);
+  background: linear-gradient(135deg, #402020, #221717);
+}
+
+.expediente-control__status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.expediente-control__status h2 {
+  margin: 0.15rem 0 0.3rem;
+}
+
+.expediente-control__status p:last-child {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.5;
+}
+
+.expediente-status-badge {
+  display: grid;
+  place-items: center;
+  min-width: 126px;
+  min-height: 72px;
+  padding: 0.65rem 0.8rem;
+  border-radius: 18px;
+  text-align: center;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.expediente-status-badge.is-open {
+  background: #bff2d2;
+  color: #0b4f2e;
+}
+
+.expediente-status-badge.is-limited {
+  background: #ffe39a;
+  color: #5c3f00;
+}
+
+.expediente-status-badge.is-closed {
+  background: #ffd1d1;
+  color: #7a2020;
+}
+
+.expediente-control__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.expediente-control__notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.86rem;
+}
+
+.button--success {
+  background: #1f9b61;
+  color: #fff;
+}
+
+.button--warning {
+  background: #e6b83f;
+  color: #211a08;
+}
+
+@media (max-width: 760px) {
+  .expediente-control {
+    grid-template-columns: 1fr;
+  }
+
+  .expediente-control__status {
+    grid-template-columns: 1fr;
+  }
+
+  .expediente-status-badge {
+    min-width: 0;
+    min-height: 48px;
+  }
+
+  .expediente-control__actions {
+    justify-content: stretch;
+  }
+
+  .expediente-control__actions .button {
+    width: 100%;
+  }
+}
