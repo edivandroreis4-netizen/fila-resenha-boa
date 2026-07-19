@@ -14,6 +14,33 @@
 <body>
 
   <aside
+    id="queueTurnAlert"
+    class="queue-turn-alert"
+    role="alertdialog"
+    aria-live="assertive"
+    aria-labelledby="queueTurnAlertTitle"
+    hidden
+  >
+    <div class="queue-turn-alert__icon" aria-hidden="true">1ª</div>
+
+    <div class="queue-turn-alert__content">
+      <strong id="queueTurnAlertTitle">Você é o próximo da fila</strong>
+      <p id="queueTurnAlertText">
+        Permaneça próximo à barbearia para não perder sua vez.
+      </p>
+    </div>
+
+    <button
+      id="dismissQueueTurnAlertButton"
+      class="queue-turn-alert__button"
+      type="button"
+    >
+      Entendi
+    </button>
+  </aside>
+
+
+  <aside
     id="clientPresenceReminder"
     class="client-presence-reminder"
     role="alertdialog"
@@ -93,6 +120,45 @@
         <p><strong>Presença:</strong> <span id="trackingPresenceText">Ainda não confirmada</span></p>
       </div>
 
+      <section
+        id="queuePositionPanel"
+        class="queue-position-panel"
+        aria-live="polite"
+        aria-atomic="true"
+        hidden
+      >
+        <div class="queue-position-panel__main">
+          <span
+            id="queuePositionNumber"
+            class="queue-position-panel__number"
+            aria-hidden="true"
+          >1ª</span>
+
+          <div class="queue-position-panel__content">
+            <p class="eyebrow">Fila em tempo real</p>
+            <h3 id="queuePositionTitle">Você é o próximo</h3>
+            <p id="queuePositionText">
+              Não há clientes aguardando antes de você.
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="queuePositionMeta"
+          class="queue-position-panel__meta"
+        >
+          <span id="queuePeopleAhead">
+            Nenhuma pessoa à sua frente
+          </span>
+          <small id="queuePositionUpdated">Atualizado agora</small>
+        </div>
+
+        <p id="queuePositionNote" class="queue-position-panel__note">
+          A posição pode mudar conforme a fila é atualizada. Acompanhe o aplicativo e permaneça próximo à barbearia.
+        </p>
+      </section>
+
+
       
 
       <div class="presence-actions" id="presenceActions">
@@ -104,6 +170,15 @@
       <p id="trackingNote" class="tracking-note">
         A confirmação informa o profissional, mas não reserva posição. A entrada na fila é validada pelo barbeiro e respeita a ordem de chegada.
       </p>
+
+      <div id="clientTrackingActions" class="client-tracking-actions" hidden>
+        <button id="cancelBookingButton" class="tracking-action tracking-action--danger" type="button" hidden>
+          Cancelar solicitação
+        </button>
+        <button id="newRequestButton" class="tracking-action tracking-action--primary" type="button" hidden>
+          Fazer novo pedido
+        </button>
+      </div>
     </section>
 
     <section class="booking-card">
@@ -188,6 +263,44 @@
     <p>Atendimento por ordem de chegada</p>
     <div><img src="../assets/images/edivandro-lima.jpg" alt="Edivandro Lima" /><span>Desenvolvido por <strong>Edivandro Lima</strong></span></div>
   </footer>
+
+  <div id="cancelBookingModal" class="client-modal" role="presentation" hidden>
+    <section class="client-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cancelBookingModalTitle">
+      <header class="client-modal__header">
+        <div>
+          <p class="eyebrow">Acompanhamento</p>
+          <h2 id="cancelBookingModalTitle">Cancelar solicitação?</h2>
+        </div>
+        <button id="closeCancelBookingModalButton" class="client-modal__close" type="button" aria-label="Fechar">×</button>
+      </header>
+
+      <p id="cancelBookingWarning" class="client-modal__warning">
+        O pedido será cancelado.
+      </p>
+
+      <label class="client-modal__field" for="cancellationReason">
+        Motivo opcional
+        <select id="cancellationReason">
+          <option value="">Prefiro não informar</option>
+          <option value="Escolhi o profissional errado">Escolhi o profissional errado</option>
+          <option value="Tive um imprevisto">Tive um imprevisto</option>
+          <option value="Não posso mais comparecer">Não posso mais comparecer</option>
+          <option value="Tempo de espera">Tempo de espera</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </label>
+
+      <label id="otherCancellationReasonField" class="client-modal__field" for="otherCancellationReason" hidden>
+        Descreva o motivo
+        <textarea id="otherCancellationReason" rows="3" maxlength="240"></textarea>
+      </label>
+
+      <footer class="client-modal__actions">
+        <button id="keepBookingButton" class="tracking-action" type="button">Manter pedido</button>
+        <button id="confirmCancelBookingButton" class="tracking-action tracking-action--danger" type="button">Confirmar cancelamento</button>
+      </footer>
+    </section>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="./js/app.js"></script>
 </body>

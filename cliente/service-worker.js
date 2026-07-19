@@ -1,4 +1,4 @@
-const CACHE_NAME = "resenha-boa-cliente-lembrete-acao-unica-v1";
+const CACHE_NAME = "resenha-cliente-expediente-posicao-cancelamento-v4";
 const ASSETS = ["./","./index.html","./css/style.css","./js/app.js","./manifest.json","../js/supabase-config.js","../assets/images/logo-resenha-boa.jpg","../assets/images/edivandro-lima.jpg","../assets/icons/icon-192.png","../assets/icons/icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))); self.clients.claim(); });

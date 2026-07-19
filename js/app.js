@@ -27,6 +27,10 @@ let alertSettings = load(STORAGE_KEYS.alertSettings, {
 });
 let professional = load(STORAGE_KEYS.professional, { name: "" });
 professional.id ||= crypto.randomUUID();
+professional.statusExpediente ||= "recebendo_clientes";
+professional.expedienteData ||= localDateKey();
+professional.expedienteIniciadoEm ||= new Date().toISOString();
+professional.expedienteEncerradoEm ||= null;
 let closures = load(STORAGE_KEYS.closures, []);
 let knownCustomers = load(STORAGE_KEYS.knownCustomers, []);
 let appointments = [];
@@ -185,6 +189,14 @@ const elements = {
   cancelProfessionalButton: document.querySelector("#cancelProfessionalButton"),
   professionalSettingsForm: document.querySelector("#professionalSettingsForm"),
   professionalSettingsName: document.querySelector("#professionalSettingsName"),
+  expedienteControl: document.querySelector("#expedienteControl"),
+  expedienteStatusBadge: document.querySelector("#expedienteStatusBadge"),
+  expedienteStatusTitle: document.querySelector("#expedienteStatusTitle"),
+  expedienteStatusText: document.querySelector("#expedienteStatusText"),
+  expedienteQueueNotice: document.querySelector("#expedienteQueueNotice"),
+  startExpedienteButton: document.querySelector("#startExpedienteButton"),
+  closeNewClientsButton: document.querySelector("#closeNewClientsButton"),
+  endExpedienteButton: document.querySelector("#endExpedienteButton"),
 
   editCustomerDialog: document.querySelector("#editCustomerDialog"),
   editCustomerForm: document.querySelector("#editCustomerForm"),
@@ -470,6 +482,228 @@ function resizeImageFile(file, maxSize = 256, quality = 0.82) {
     reader.readAsDataURL(file);
   });
 }
+
+
+const EXPEDIENTE_STATUS = {
+  recebendo_clientes: {
+    label: "Recebendo clientes",
+    title: "Expediente aberto",
+    description:
+      "Seu card está disponível para novos pedidos no aplicativo do cliente.",
+    className: "is-open"
+  },
+  fechado_novos_clientes: {
+    label: "Fechado para novos clientes",
+    title: "Somente fila atual",
+    description:
+      "Novos pedidos estão bloqueados. Continue atendendo normalmente quem já está na fila.",
+    className: "is-limited"
+  },
+  expediente_encerrado: {
+    label: "Expediente encerrado",
+    title: "Profissional indisponível",
+    description:
+      "O cliente verá seu card, mas não poderá enviar uma nova solicitação.",
+    className: "is-closed"
+  }
+};
+
+function normalizeExpedienteForToday() {
+  const today = localDateKey();
+  const status =
+    professional.statusExpediente || "expediente_encerrado";
+
+  if (
+    status !== "expediente_encerrado" &&
+    professional.expedienteData &&
+    professional.expedienteData !== today
+  ) {
+    professional.statusExpediente = "expediente_encerrado";
+    professional.expedienteEncerradoEm =
+      professional.expedienteEncerradoEm ||
+      new Date().toISOString();
+  }
+}
+
+function currentExpedienteStatus() {
+  normalizeExpedienteForToday();
+  return professional.statusExpediente ||
+    "expediente_encerrado";
+}
+
+function renderExpediente() {
+  const status = currentExpedienteStatus();
+  const info =
+    EXPEDIENTE_STATUS[status] ||
+    EXPEDIENTE_STATUS.expediente_encerrado;
+
+  elements.expedienteControl.classList.remove(
+    "is-open",
+    "is-limited",
+    "is-closed"
+  );
+  elements.expedienteControl.classList.add(info.className);
+
+  elements.expedienteStatusBadge.className =
+    `expediente-status-badge ${info.className}`;
+  elements.expedienteStatusBadge.textContent = info.label;
+  elements.expedienteStatusTitle.textContent = info.title;
+  elements.expedienteStatusText.textContent = info.description;
+
+  const waitingCount = queue.filter(
+    item => item.status !== "em_atendimento"
+  ).length;
+  const hasCurrent = queue.some(
+    item => item.status === "em_atendimento"
+  );
+
+  elements.expedienteQueueNotice.textContent =
+    waitingCount || hasCurrent
+      ? `Fila preservada: ${waitingCount} aguardando${
+          hasCurrent ? " e 1 em atendimento" : ""
+        }.`
+      : "Nenhum cliente está na fila neste momento.";
+
+  elements.startExpedienteButton.hidden =
+    status === "recebendo_clientes";
+  elements.startExpedienteButton.textContent =
+    status === "fechado_novos_clientes"
+      ? "Reabrir para novos clientes"
+      : "Iniciar expediente";
+
+  elements.closeNewClientsButton.hidden =
+    status !== "recebendo_clientes";
+  elements.endExpedienteButton.hidden =
+    status === "expediente_encerrado";
+}
+
+async function changeExpedienteStatus(nextStatus) {
+  const validStatuses = new Set(
+    Object.keys(EXPEDIENTE_STATUS)
+  );
+
+  if (!validStatuses.has(nextStatus)) return;
+
+  const waitingCount = queue.filter(
+    item => item.status !== "em_atendimento"
+  ).length;
+  const hasCurrent = queue.some(
+    item => item.status === "em_atendimento"
+  );
+  const queueText = waitingCount || hasCurrent
+    ? `<br><br><strong>A fila atual não será apagada:</strong> ${
+        waitingCount
+      } aguardando${hasCurrent ? " e 1 em atendimento" : ""}.`
+    : "";
+
+  const messages = {
+    recebendo_clientes: {
+      title: "Iniciar expediente?",
+      html:
+        "Seu card ficará disponível e novos clientes poderão enviar solicitações.",
+      confirmText: "Iniciar expediente",
+      icon: "question"
+    },
+    fechado_novos_clientes: {
+      title: "Fechar para novos clientes?",
+      html:
+        "O card continuará visível, mas novos pedidos serão bloqueados." +
+        queueText,
+      confirmText: "Fechar novos pedidos",
+      icon: "warning"
+    },
+    expediente_encerrado: {
+      title: "Encerrar expediente?",
+      html:
+        "Novos pedidos serão bloqueados. Os clientes já aceitos continuarão na fila." +
+        queueText,
+      confirmText: "Encerrar expediente",
+      icon: "warning"
+    }
+  };
+
+  const confirmed = await confirmAction(messages[nextStatus]);
+  if (!confirmed) return;
+
+  const now = new Date().toISOString();
+
+  professional = {
+    ...professional,
+    statusExpediente: nextStatus,
+    expedienteData: localDateKey(),
+    expedienteIniciadoEm:
+      nextStatus === "recebendo_clientes"
+        ? now
+        : professional.expedienteIniciadoEm,
+    expedienteEncerradoEm:
+      nextStatus === "expediente_encerrado"
+        ? now
+        : null
+  };
+
+  saveAll();
+  renderAll();
+
+  if (isSupabaseConfigured()) {
+    try {
+      await syncNow({ forcePush: true });
+    } catch (error) {
+      showToast(
+        `Status salvo no aparelho, mas a sincronização falhou: ${error.message}`
+      );
+      return;
+    }
+  }
+
+  const labels = {
+    recebendo_clientes:
+      "Expediente iniciado. Você está recebendo clientes.",
+    fechado_novos_clientes:
+      "Novos pedidos foram bloqueados. A fila atual foi preservada.",
+    expediente_encerrado:
+      "Expediente encerrado. A fila atual foi preservada."
+  };
+
+  showToast(labels[nextStatus]);
+}
+
+async function maybePromptNewDayExpediente() {
+  const promptKey =
+    `resenha-expediente-prompt-${localDateKey()}`;
+  const wasAnotherDay =
+    professional.expedienteData &&
+    professional.expedienteData !== localDateKey();
+
+  normalizeExpedienteForToday();
+
+  if (
+    !professional.name?.trim() ||
+    !wasAnotherDay ||
+    sessionStorage.getItem(promptKey)
+  ) {
+    return;
+  }
+
+  sessionStorage.setItem(promptKey, "1");
+
+  const result = await Swal.fire({
+    title: "Iniciar o expediente de hoje?",
+    text:
+      "O profissional permanece indisponível até que o expediente seja iniciado.",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Iniciar expediente",
+    cancelButtonText: "Manter encerrado"
+  });
+
+  if (result.isConfirmed) {
+    await changeExpedienteStatus("recebendo_clientes");
+  } else {
+    saveAll();
+    renderAll();
+  }
+}
+
 
 function renderProfessional() {
   const name = professional.name?.trim() || "não configurado";
@@ -2026,6 +2260,7 @@ function renderAppointments() {
               <span><strong>Serviço:</strong> ${escapeHtml(item.serviceName)} • ${formatMoney(item.value)}</span>
               <span><strong>WhatsApp:</strong> ${escapeHtml(formatPhone(item.phone))}</span>
               ${item.notes ? `<span><strong>Observação:</strong> ${escapeHtml(item.notes)}</span>` : ""}
+              ${item.cancellationReason ? `<span><strong>Cancelamento:</strong> ${escapeHtml(item.cancellationReason)}</span>` : ""}
               ${
                 item.presenceUpdatedAt
                   ? `<span><strong>Presença atualizada:</strong> ${formatDateTime(item.presenceUpdatedAt)}</span>`
@@ -2102,6 +2337,7 @@ function applySyncState(remote) {
 
 function renderAll() {
   renderProfessional();
+  renderExpediente();
   renderServiceOptions();
   renderServices();
   renderKnownCustomers();
@@ -2518,8 +2754,23 @@ elements.queueList.addEventListener("click", async event => {
 
       if (confirmed) {
         queue = queue.filter(item => item.id !== customer.id);
+
+        if (customer.appointmentId && isSupabaseConfigured()) {
+          const cancelledAt = new Date().toISOString();
+          try {
+            await updateAppointment(customer.appointmentId, {
+              status: "cancelado",
+              cancelledAt,
+              cancelledBy: "barbeiro",
+              cancellationReason: "Removido da fila pelo profissional"
+            });
+          } catch (error) {
+            showToast(error.message);
+          }
+        }
+
         renderAll();
-        showToast("Cliente removido.");
+        showToast("Cliente removido. As posições foram atualizadas.");
       }
       break;
     }
@@ -2990,6 +3241,21 @@ elements.closeDayButton.addEventListener("click", async () => {
 });
 
 
+elements.startExpedienteButton.addEventListener(
+  "click",
+  () => changeExpedienteStatus("recebendo_clientes")
+);
+
+elements.closeNewClientsButton.addEventListener(
+  "click",
+  () => changeExpedienteStatus("fechado_novos_clientes")
+);
+
+elements.endExpedienteButton.addEventListener(
+  "click",
+  () => changeExpedienteStatus("expediente_encerrado")
+);
+
 elements.professionalSettingsForm.addEventListener("submit", event => {
   event.preventDefault();
 
@@ -3184,7 +3450,13 @@ elements.appointmentsList.addEventListener("click", async event => {
     const confirmed = await confirmAction({ title: "Cancelar agendamento?", html: `<strong>${escapeHtml(appointment.clientName)}</strong> será marcado como cancelado.`, confirmText: "Cancelar agendamento", icon: "warning" });
     if (!confirmed) return;
     try {
-      await updateAppointment(appointment.id, { status: "cancelado" });
+      const cancelledAt = new Date().toISOString();
+      await updateAppointment(appointment.id, {
+        status: "cancelado",
+        cancelledAt,
+        cancelledBy: "barbeiro",
+        cancellationReason: "Cancelado pelo profissional"
+      });
       showToast("Agendamento cancelado.");
     } catch (error) { showToast(error.message); }
     return;
@@ -3522,7 +3794,14 @@ initSupabaseSync({
     renderAppointments();
   },
   onStatus: updateSyncInterface
-}).catch(error => updateSyncInterface({ state: "error", message: error.message }));
+})
+  .then(() => maybePromptNewDayExpediente())
+  .catch(error =>
+    updateSyncInterface({
+      state: "error",
+      message: error.message
+    })
+  );
 
 if (!professional.name?.trim()) {
   setTimeout(() => openProfessionalDialog(true), 250);

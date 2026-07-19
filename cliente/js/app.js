@@ -30,9 +30,33 @@ const elements = {
   trackingServiceName: document.querySelector("#trackingServiceName"),
   trackingPreference: document.querySelector("#trackingPreference"),
   trackingPresenceText: document.querySelector("#trackingPresenceText"),
+  queuePositionPanel: document.querySelector("#queuePositionPanel"),
+  queuePositionNumber: document.querySelector("#queuePositionNumber"),
+  queuePositionTitle: document.querySelector("#queuePositionTitle"),
+  queuePositionText: document.querySelector("#queuePositionText"),
+  queuePositionMeta: document.querySelector("#queuePositionMeta"),
+  queuePeopleAhead: document.querySelector("#queuePeopleAhead"),
+  queuePositionUpdated: document.querySelector("#queuePositionUpdated"),
+  queuePositionNote: document.querySelector("#queuePositionNote"),
+  queueTurnAlert: document.querySelector("#queueTurnAlert"),
+  queueTurnAlertTitle: document.querySelector("#queueTurnAlertTitle"),
+  queueTurnAlertText: document.querySelector("#queueTurnAlertText"),
+  dismissQueueTurnAlertButton: document.querySelector("#dismissQueueTurnAlertButton"),
   presenceActions: document.querySelector("#presenceActions"),
   trackingNote: document.querySelector("#trackingNote"),
   atBarbershopButton: document.querySelector("#atBarbershopButton"),
+  clientTrackingActions: document.querySelector("#clientTrackingActions"),
+  cancelBookingButton: document.querySelector("#cancelBookingButton"),
+  newRequestButton: document.querySelector("#newRequestButton"),
+  cancelBookingModal: document.querySelector("#cancelBookingModal"),
+  cancelBookingModalTitle: document.querySelector("#cancelBookingModalTitle"),
+  cancelBookingWarning: document.querySelector("#cancelBookingWarning"),
+  cancellationReason: document.querySelector("#cancellationReason"),
+  otherCancellationReasonField: document.querySelector("#otherCancellationReasonField"),
+  otherCancellationReason: document.querySelector("#otherCancellationReason"),
+  closeCancelBookingModalButton: document.querySelector("#closeCancelBookingModalButton"),
+  keepBookingButton: document.querySelector("#keepBookingButton"),
+  confirmCancelBookingButton: document.querySelector("#confirmCancelBookingButton"),
   clientPresenceReminder: document.querySelector("#clientPresenceReminder"),
   clientPresenceReminderTitle: document.querySelector("#clientPresenceReminderTitle"),
   clientPresenceReminderText: document.querySelector("#clientPresenceReminderText"),
@@ -47,6 +71,11 @@ let currentAppointment = null;
 let realtimeChannel = null;
 let catalogChannel = null;
 let reminderAudioContext = null;
+let queuePositionRequestToken = 0;
+let currentQueuePositionState = null;
+
+const FIRST_POSITION_ALERT_PREFIX =
+  "resenha-boa-first-position-alert";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -57,6 +86,22 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+
+function createClientAccessToken() {
+  if (crypto?.randomUUID) return crypto.randomUUID();
+
+  const random = new Uint8Array(24);
+  crypto.getRandomValues(random);
+  return Array.from(random, value => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), byte =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+}
 
 function playClientReminderSound(urgent = false) {
   try {
@@ -127,6 +172,35 @@ function syncPresenceActionsVisibility(
   );
 }
 
+
+function syncClientTrackingActions(
+  appointment = currentAppointment
+) {
+  if (!appointment) {
+    elements.clientTrackingActions.hidden = true;
+    elements.cancelBookingButton.hidden = true;
+    elements.newRequestButton.hidden = true;
+    return;
+  }
+
+  const inService =
+    currentQueuePositionState?.type === "in_service";
+  const canCancel =
+    appointment.status === "agendado" ||
+    (appointment.status === "na_fila" && !inService);
+  const canStartAgain =
+    isFinishedAppointmentStatus(appointment.status);
+
+  elements.clientTrackingActions.hidden =
+    !canCancel && !canStartAgain;
+  elements.cancelBookingButton.hidden = !canCancel;
+  elements.newRequestButton.hidden = !canStartAgain;
+  elements.cancelBookingButton.textContent =
+    appointment.status === "na_fila"
+      ? "Sair da fila"
+      : "Cancelar solicitação";
+}
+
 function hideClientPresenceReminder() {
   elements.clientPresenceReminder.hidden = true;
   elements.clientPresenceReminder.classList.remove("is-urgent");
@@ -150,6 +224,251 @@ function showClientPresenceReminder({ estimate, urgent }) {
   // Enquanto o lembrete estiver aberto, ele é o único ponto de ação.
   syncPresenceActionsVisibility();
 }
+
+
+function formatQueuePositionUpdated() {
+  return `Atualizado às ${new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date())}`;
+}
+
+function firstPositionAlertKey(queueRow) {
+  return [
+    FIRST_POSITION_ALERT_PREFIX,
+    currentAppointment?.id || "sem-agendamento",
+    queueRow?.id || "sem-fila"
+  ].join("-");
+}
+
+function hideQueueTurnAlert() {
+  elements.queueTurnAlert.hidden = true;
+  elements.queueTurnAlert.removeAttribute("data-alert-key");
+}
+
+function dismissQueueTurnAlert() {
+  const key = elements.queueTurnAlert.dataset.alertKey;
+
+  if (key) {
+    sessionStorage.setItem(`${key}-dismissed`, "true");
+  }
+
+  hideQueueTurnAlert();
+}
+
+function renderQueuePosition(state) {
+  currentQueuePositionState = state;
+
+  if (!state) {
+    elements.queuePositionPanel.hidden = true;
+    elements.queuePositionPanel.classList.remove(
+      "is-next",
+      "is-in-service"
+    );
+    hideQueueTurnAlert();
+    syncClientTrackingActions();
+    return;
+  }
+
+  elements.queuePositionPanel.hidden = false;
+  elements.queuePositionPanel.classList.toggle(
+    "is-next",
+    state.type === "waiting" && state.position === 1
+  );
+  elements.queuePositionPanel.classList.toggle(
+    "is-in-service",
+    state.type === "in_service"
+  );
+  elements.queuePositionUpdated.textContent =
+    formatQueuePositionUpdated();
+
+  if (state.type === "in_service") {
+    elements.trackingBookingStatus.textContent =
+      "Em atendimento";
+    elements.trackingBookingStatus.className =
+      "tracking-status is-info";
+
+    elements.queuePositionNumber.textContent = "✓";
+    elements.queuePositionTitle.textContent =
+      "Seu atendimento foi iniciado";
+    elements.queuePositionText.textContent =
+      `O profissional ${state.professionalName} já iniciou seu atendimento.`;
+    elements.queuePositionMeta.hidden = true;
+    elements.queuePositionNote.textContent =
+      "Seu atendimento está em andamento.";
+    hideQueueTurnAlert();
+    syncClientTrackingActions();
+    return;
+  }
+
+  elements.queuePositionMeta.hidden = false;
+  elements.queuePositionNumber.textContent =
+    `${state.position}ª`;
+
+  if (state.position === 1) {
+    elements.queuePositionTitle.textContent =
+      "Você é o próximo";
+    elements.queuePositionText.textContent =
+      "Não há outros clientes aguardando antes de você.";
+    elements.queuePeopleAhead.textContent =
+      "Nenhuma pessoa à sua frente";
+  } else {
+    elements.queuePositionTitle.textContent =
+      `Você está na ${state.position}ª posição`;
+    elements.queuePositionText.textContent =
+      state.peopleAhead === 1
+        ? "Existe 1 cliente aguardando antes de você."
+        : `Existem ${state.peopleAhead} clientes aguardando antes de você.`;
+    elements.queuePeopleAhead.textContent =
+      state.peopleAhead === 1
+        ? "1 pessoa à sua frente"
+        : `${state.peopleAhead} pessoas à sua frente`;
+  }
+
+  elements.queuePositionNote.textContent =
+    "A posição pode mudar conforme a fila é atualizada. Acompanhe o aplicativo e permaneça próximo à barbearia.";
+  syncClientTrackingActions();
+}
+
+function notifyFirstQueuePosition(queueRow, professionalName) {
+  const alertKey = firstPositionAlertKey(queueRow);
+  const dismissedKey = `${alertKey}-dismissed`;
+  const notifiedKey = `${alertKey}-notified`;
+
+  if (!sessionStorage.getItem(dismissedKey)) {
+    elements.queueTurnAlert.hidden = false;
+    elements.queueTurnAlert.dataset.alertKey = alertKey;
+    elements.queueTurnAlertTitle.textContent =
+      "Você é o próximo da fila";
+    elements.queueTurnAlertText.textContent =
+      `O profissional ${professionalName} poderá chamar você em breve. Permaneça próximo à barbearia.`;
+  }
+
+  if (sessionStorage.getItem(notifiedKey)) return;
+
+  sessionStorage.setItem(notifiedKey, "true");
+
+  if ("vibrate" in navigator) {
+    navigator.vibrate([180, 90, 180, 90, 240]);
+  }
+
+  playClientReminderSound(true);
+  showToast(
+    "Você é o próximo da fila. Permaneça próximo à barbearia."
+  );
+}
+
+function calculateQueuePosition(queueRows, appointmentId) {
+  const orderedRows = [...queueRows].sort(
+    (first, second) =>
+      new Date(first.entrada_em).getTime() -
+      new Date(second.entrada_em).getTime()
+  );
+
+  const ownRow = orderedRows.find(
+    item => item.agendamento_id === appointmentId
+  );
+
+  if (!ownRow) return null;
+
+  if (ownRow.status === "em_atendimento") {
+    return {
+      type: "in_service",
+      queueRow: ownRow
+    };
+  }
+
+  const waitingRows = orderedRows.filter(
+    item => ["aguardando", "chamado"].includes(item.status)
+  );
+
+  const positionIndex = waitingRows.findIndex(
+    item => item.id === ownRow.id
+  );
+
+  if (positionIndex < 0) return null;
+
+  return {
+    type: "waiting",
+    queueRow: ownRow,
+    position: positionIndex + 1,
+    peopleAhead: positionIndex
+  };
+}
+
+async function refreshQueuePosition() {
+  const requestToken = ++queuePositionRequestToken;
+
+  if (
+    !client ||
+    !currentAppointment ||
+    currentAppointment.status !== "na_fila"
+  ) {
+    renderQueuePosition(null);
+    return;
+  }
+
+  const { data: queueRows, error } = await client
+    .from("fila")
+    .select(
+      "id,agendamento_id,status,entrada_em,iniciado_em,atualizado_em"
+    )
+    .eq("barbearia_id", SUPABASE_CONFIG.barbershopId)
+    .eq("profissional_id", currentAppointment.profissional_id)
+    .order("entrada_em", { ascending: true });
+
+  if (requestToken !== queuePositionRequestToken) return;
+
+  if (error) {
+    console.warn(
+      "Não foi possível atualizar a posição na fila.",
+      error
+    );
+
+    if (!elements.queuePositionPanel.hidden) {
+      elements.queuePositionUpdated.textContent =
+        "Atualização temporariamente indisponível";
+    }
+    return;
+  }
+
+  const result = calculateQueuePosition(
+    queueRows || [],
+    currentAppointment.id
+  );
+
+  if (!result) {
+    renderQueuePosition(null);
+    return;
+  }
+
+  const professionalName =
+    professionalForAppointment(currentAppointment)?.nome ||
+    "profissional";
+
+  if (result.type === "in_service") {
+    renderQueuePosition({
+      ...result,
+      professionalName
+    });
+    return;
+  }
+
+  renderQueuePosition({
+    ...result,
+    professionalName
+  });
+
+  if (result.position === 1) {
+    notifyFirstQueuePosition(
+      result.queueRow,
+      professionalName
+    );
+  } else {
+    hideQueueTurnAlert();
+  }
+}
+
 
 function digitsOnly(value) {
   return String(value || "").replace(/\D/g, "");
@@ -206,6 +525,41 @@ function buildTimes() {
     '<option value="">Selecione</option>' + options.join("");
 }
 
+function professionalAvailability(professional) {
+  const today = todayKey();
+  const status =
+    professional?.status_expediente ||
+    "expediente_encerrado";
+  const sameDay =
+    professional?.expediente_data === today;
+
+  if (status === "recebendo_clientes" && sameDay) {
+    return {
+      available: true,
+      label: "Recebendo clientes",
+      className: "is-open"
+    };
+  }
+
+  if (status === "fechado_novos_clientes" && sameDay) {
+    return {
+      available: false,
+      label: "Fechado para novos clientes",
+      className: "is-limited"
+    };
+  }
+
+  return {
+    available: false,
+    label: "Expediente encerrado",
+    className: "is-closed"
+  };
+}
+
+function isProfessionalAvailable(professional) {
+  return professionalAvailability(professional).available;
+}
+
 function selectedProfessional() {
   return professionals.find(item => item.id === elements.professional.value);
 }
@@ -231,17 +585,34 @@ function renderProfessionals() {
   elements.professional.innerHTML =
     '<option value="">Selecione</option>' +
     professionals
-      .map(
-        item =>
-          `<option value="${item.id}">${escapeHtml(item.nome)}</option>`
-      )
+      .map(item => {
+        const availability =
+          professionalAvailability(item);
+
+        return `
+          <option
+            value="${item.id}"
+            ${availability.available ? "" : "disabled"}
+          >
+            ${escapeHtml(item.nome)} — ${escapeHtml(
+              availability.label
+            )}
+          </option>
+        `;
+      })
       .join("");
 
   if (
     selectedId &&
-    professionals.some(item => item.id === selectedId)
+    professionals.some(
+      item =>
+        item.id === selectedId &&
+        isProfessionalAvailable(item)
+    )
   ) {
     elements.professional.value = selectedId;
+  } else {
+    elements.professional.value = "";
   }
 
   if (!professionals.length) {
@@ -249,14 +620,20 @@ function renderProfessionals() {
       '<p class="professional-cards__empty">Nenhum profissional ativo foi encontrado.</p>';
     elements.professionalSelectionHint.textContent =
       "Os profissionais aparecerão aqui após a sincronização.";
-    elements.professionalSelectionHint.classList.remove("is-selected");
+    elements.professionalSelectionHint.classList.remove(
+      "is-selected"
+    );
+    elements.submit.disabled = true;
     return;
   }
 
   elements.professionalCards.innerHTML = professionals
     .map(professional => {
+      const availability =
+        professionalAvailability(professional);
       const selected =
-        professional.id === elements.professional.value;
+        professional.id === elements.professional.value &&
+        availability.available;
 
       const photo = professional.foto_base64
         ? `<img src="${professional.foto_base64}" alt="Foto de ${escapeHtml(
@@ -266,10 +643,16 @@ function renderProfessionals() {
 
       return `
         <button
-          class="professional-card ${selected ? "is-selected" : ""}"
+          class="professional-card ${
+            selected ? "is-selected" : ""
+          } ${availability.className} ${
+            availability.available ? "" : "is-unavailable"
+          }"
           type="button"
           role="option"
           aria-selected="${selected}"
+          aria-disabled="${!availability.available}"
+          ${availability.available ? "" : "disabled"}
           data-professional-id="${professional.id}"
         >
           <span class="professional-card__photo ${
@@ -282,10 +665,21 @@ function renderProfessionals() {
 
           <span class="professional-card__body">
             <strong>${escapeHtml(professional.nome)}</strong>
-            <small>${escapeHtml(
-              professionalServiceSummary(professional.id)
-            )}</small>
-            <span class="professional-card__check">Selecionado</span>
+            <span class="professional-availability ${
+              availability.className
+            }">
+              ${escapeHtml(availability.label)}
+            </span>
+            <small>${
+              availability.available
+                ? escapeHtml(
+                    professionalServiceSummary(professional.id)
+                  )
+                : "Escolha outro profissional disponível"
+            }</small>
+            <span class="professional-card__check">
+              Selecionado
+            </span>
           </span>
         </button>
       `;
@@ -293,15 +687,26 @@ function renderProfessionals() {
     .join("");
 
   const selected = selectedProfessional();
+  const availableCount = professionals.filter(
+    isProfessionalAvailable
+  ).length;
 
-  if (selected) {
+  if (selected && isProfessionalAvailable(selected)) {
     elements.professionalSelectionHint.textContent =
       `${selected.nome} selecionado. Escolha um serviço abaixo.`;
-    elements.professionalSelectionHint.classList.add("is-selected");
+    elements.professionalSelectionHint.classList.add(
+      "is-selected"
+    );
+    elements.submit.disabled = false;
   } else {
     elements.professionalSelectionHint.textContent =
-      "Toque em um card para selecionar o barbeiro.";
-    elements.professionalSelectionHint.classList.remove("is-selected");
+      availableCount
+        ? "Toque em um profissional que esteja recebendo clientes."
+        : "Nenhum profissional está recebendo novos clientes neste momento.";
+    elements.professionalSelectionHint.classList.remove(
+      "is-selected"
+    );
+    elements.submit.disabled = !availableCount;
   }
 }
 
@@ -311,6 +716,14 @@ function selectProfessional(professionalId, options = {}) {
   );
 
   if (!professional) return;
+
+  if (!isProfessionalAvailable(professional)) {
+    showToast(
+      professionalAvailability(professional).label +
+      ". Escolha outro profissional."
+    );
+    return;
+  }
 
   elements.professional.value = professional.id;
   renderProfessionals();
@@ -327,7 +740,15 @@ function renderServices() {
 
   if (!professionalId) {
     elements.service.innerHTML =
-      '<option value="">Selecione primeiro um profissional</option>';
+      '<option value="">Selecione primeiro um profissional disponível</option>';
+    return;
+  }
+
+  const professional = selectedProfessional();
+
+  if (!isProfessionalAvailable(professional)) {
+    elements.service.innerHTML =
+      '<option value="">Este profissional não está recebendo novos clientes</option>';
     return;
   }
 
@@ -410,6 +831,7 @@ function renderTracking(appointment) {
     elements.presenceActions.style.display = "none";
     elements.presenceActions.setAttribute("aria-hidden", "true");
     elements.trackingNote.hidden = true;
+    renderQueuePosition(null);
     return;
   }
 
@@ -457,15 +879,27 @@ function renderTracking(appointment) {
     `${formatDate(appointment.data_agendada)} às ${String(
       appointment.hora_preferida || ""
     ).slice(0, 5)}`;
-  elements.trackingPresenceText.textContent = trackingFinished
-    ? "Presença confirmada"
-    : presenceInfo(presenceStatus);
+  elements.trackingPresenceText.textContent =
+    appointment.status === "cancelado"
+      ? "Cancelamento registrado"
+      : trackingFinished
+        ? "Presença confirmada"
+        : presenceInfo(presenceStatus);
+
+  if (appointment.status !== "na_fila") {
+    renderQueuePosition(null);
+  }
 
   syncPresenceActionsVisibility(appointment);
 
   elements.trackingNote.hidden = trackingFinished;
 
-  if (!trackingFinished) {
+  if (appointment.status === "cancelado") {
+    elements.trackingNote.hidden = false;
+    elements.trackingNote.textContent = appointment.cancelamento_motivo
+      ? `Solicitação cancelada. Motivo: ${appointment.cancelamento_motivo}`
+      : "Solicitação cancelada. Você pode fazer um novo pedido quando desejar.";
+  } else if (!trackingFinished) {
     if (appointment.status === "na_fila") {
       elements.trackingNote.textContent =
         "Sua presença foi confirmada. Você está na fila do profissional escolhido e pode acompanhar o andamento acima.";
@@ -487,14 +921,67 @@ function renderTracking(appointment) {
     presenceStatus === "presente"
       ? "Presença informada"
       : "Confirmar presença";
+
+  syncClientTrackingActions(appointment);
 }
 
 function loadStoredBooking() {
+  const raw = localStorage.getItem(LAST_BOOKING_KEY);
+  if (!raw) return null;
+
   try {
-    return JSON.parse(localStorage.getItem(LAST_BOOKING_KEY) || "null");
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "string" ? { id: parsed } : parsed;
   } catch {
-    return null;
+    return { id: raw };
   }
+}
+
+function saveStoredBooking(
+  appointment,
+  clientAccessToken = loadStoredBooking()?.clientAccessToken || null
+) {
+  if (!appointment?.id) return;
+
+  localStorage.setItem(
+    LAST_BOOKING_KEY,
+    JSON.stringify({
+      ...appointment,
+      id: appointment.id,
+      ...(clientAccessToken ? { clientAccessToken } : {})
+    })
+  );
+}
+
+async function ensureClientAccessToken() {
+  const stored = loadStoredBooking();
+
+  if (stored?.clientAccessToken) {
+    return stored.clientAccessToken;
+  }
+
+  if (!client || !currentAppointment?.id) {
+    throw new Error("Não foi possível validar este acompanhamento.");
+  }
+
+  const token = createClientAccessToken();
+  const tokenHash = await sha256Hex(token);
+  const { error } = await client
+    .from("agendamentos")
+    .update({
+      cliente_token_hash: tokenHash,
+      atualizado_em: new Date().toISOString()
+    })
+    .eq("id", currentAppointment.id);
+
+  if (error) {
+    throw new Error(
+      "Execute a migração 05 no Supabase antes de liberar o cancelamento."
+    );
+  }
+
+  saveStoredBooking(currentAppointment, token);
+  return token;
 }
 
 async function fetchCurrentAppointment() {
@@ -520,17 +1007,16 @@ async function fetchCurrentAppointment() {
   }
 
   currentAppointment = data;
-  localStorage.setItem(
-    LAST_BOOKING_KEY,
-    JSON.stringify({
-      ...stored,
-      ...data,
-      id: data.id
-    })
+  saveStoredBooking(
+    { ...stored, ...data, id: data.id },
+    stored.clientAccessToken
   );
 
   renderTracking(currentAppointment);
-  await refreshProximityAlert();
+  await Promise.all([
+    refreshProximityAlert(),
+    refreshQueuePosition()
+  ]);
   return currentAppointment;
 }
 
@@ -637,13 +1123,110 @@ async function updatePresence(status) {
   }
 
   currentAppointment = data;
+  saveStoredBooking(currentAppointment);
   hideClientPresenceReminder();
   renderTracking(currentAppointment);
-  await refreshProximityAlert();
+  await Promise.all([
+    refreshProximityAlert(),
+    refreshQueuePosition()
+  ]);
 
   showToast(
     "Presença informada. Aguarde o barbeiro validar sua entrada na fila."
   );
+}
+
+
+function closeCancellationModal() {
+  elements.cancelBookingModal.hidden = true;
+  document.body.classList.remove("is-modal-open");
+  elements.confirmCancelBookingButton.disabled = false;
+  elements.confirmCancelBookingButton.textContent =
+    "Confirmar cancelamento";
+}
+
+function openCancellationModal() {
+  if (!currentAppointment) return;
+
+  if (currentQueuePositionState?.type === "in_service") {
+    showToast(
+      "O atendimento já foi iniciado. Procure o profissional para qualquer alteração."
+    );
+    return;
+  }
+
+  const leavingQueue = currentAppointment.status === "na_fila";
+  elements.cancelBookingModalTitle.textContent = leavingQueue
+    ? "Sair da fila?"
+    : "Cancelar solicitação?";
+  elements.cancelBookingWarning.textContent = leavingQueue
+    ? "Você perderá sua posição atual. As posições dos demais clientes serão atualizadas automaticamente."
+    : "O pedido será cancelado e deixará de aparecer como atendimento pendente para o profissional.";
+  elements.cancellationReason.value = "";
+  elements.otherCancellationReason.value = "";
+  elements.otherCancellationReasonField.hidden = true;
+  elements.cancelBookingModal.hidden = false;
+  document.body.classList.add("is-modal-open");
+  elements.keepBookingButton.focus();
+}
+
+function selectedCancellationReason() {
+  if (elements.cancellationReason.value === "Outro") {
+    return elements.otherCancellationReason.value.trim();
+  }
+
+  return elements.cancellationReason.value;
+}
+
+async function confirmClientCancellation() {
+  if (!client || !currentAppointment?.id) return;
+
+  elements.confirmCancelBookingButton.disabled = true;
+  elements.confirmCancelBookingButton.textContent = "Cancelando...";
+
+  try {
+    const token = await ensureClientAccessToken();
+    const { data, error } = await client.rpc(
+      "cancelar_agendamento_cliente",
+      {
+        p_agendamento_id: currentAppointment.id,
+        p_cliente_token: token,
+        p_motivo: selectedCancellationReason() || null
+      }
+    );
+
+    if (error) throw error;
+
+    const cancelled = Array.isArray(data) ? data[0] : data;
+    currentAppointment = cancelled || {
+      ...currentAppointment,
+      status: "cancelado",
+      cancelado_por: "cliente",
+      cancelado_em: new Date().toISOString(),
+      cancelamento_motivo: selectedCancellationReason() || null
+    };
+
+    saveStoredBooking(currentAppointment, token);
+    hideClientPresenceReminder();
+    hideQueueTurnAlert();
+    renderQueuePosition(null);
+    renderTracking(currentAppointment);
+    closeCancellationModal();
+    showToast(
+      currentAppointment.status === "cancelado"
+        ? "Solicitação cancelada."
+        : "Cancelamento processado."
+    );
+  } catch (error) {
+    elements.confirmCancelBookingButton.disabled = false;
+    elements.confirmCancelBookingButton.textContent =
+      "Confirmar cancelamento";
+    showToast(
+      error.message?.includes("cancelar_agendamento_cliente")
+        ? "Execute a migração 05 no Supabase antes de testar o cancelamento."
+        : error.message
+    );
+  }
 }
 
 function subscribeTracking() {
@@ -673,7 +1256,11 @@ function subscribeTracking() {
         table: "fila",
         filter: `profissional_id=eq.${currentAppointment.profissional_id}`
       },
-      () => refreshProximityAlert().catch(console.warn)
+      () =>
+        Promise.all([
+          refreshProximityAlert(),
+          refreshQueuePosition()
+        ]).catch(console.warn)
     )
     .subscribe();
 }
@@ -689,7 +1276,9 @@ async function loadCatalog() {
   ] = await Promise.all([
     client
       .from("profissionais")
-      .select("id,nome,foto_base64,atualizado_em")
+      .select(
+        "id,nome,foto_base64,status_expediente,expediente_data,expediente_iniciado_em,expediente_encerrado_em,atualizado_em"
+      )
       .eq("barbearia_id", SUPABASE_CONFIG.barbershopId)
       .eq("ativo", true)
       .order("nome"),
@@ -711,7 +1300,11 @@ async function loadCatalog() {
 
   if (
     selectedId &&
-    professionals.some(item => item.id === selectedId)
+    professionals.some(
+      item =>
+        item.id === selectedId &&
+        isProfessionalAvailable(item)
+    )
   ) {
     elements.professional.value = selectedId;
   } else {
@@ -780,10 +1373,16 @@ async function loadData() {
     await loadCatalog();
 
     elements.message.className = "connection-message is-ok";
-    elements.message.textContent = professionals.length
-      ? "Conectado. Escolha o profissional para continuar."
-      : "Conectado, mas ainda não existem profissionais sincronizados.";
-    elements.submit.disabled = !professionals.length;
+    const availableCount =
+      professionals.filter(isProfessionalAvailable).length;
+
+    elements.message.textContent = !professionals.length
+      ? "Conectado, mas ainda não existem profissionais sincronizados."
+      : availableCount
+        ? "Conectado. Escolha um profissional que esteja recebendo clientes."
+        : "Conectado. Nenhum profissional está recebendo novos clientes neste momento.";
+
+    elements.submit.disabled = !availableCount;
 
     await fetchCurrentAppointment();
     subscribeTracking();
@@ -832,6 +1431,42 @@ elements.reminderAtBarbershopButton.addEventListener(
   () => updatePresence("presente")
 );
 
+elements.dismissQueueTurnAlertButton.addEventListener(
+  "click",
+  dismissQueueTurnAlert
+);
+
+elements.cancelBookingButton.addEventListener(
+  "click",
+  openCancellationModal
+);
+elements.closeCancelBookingModalButton.addEventListener(
+  "click",
+  closeCancellationModal
+);
+elements.keepBookingButton.addEventListener(
+  "click",
+  closeCancellationModal
+);
+elements.confirmCancelBookingButton.addEventListener(
+  "click",
+  confirmClientCancellation
+);
+elements.cancellationReason.addEventListener("change", () => {
+  elements.otherCancellationReasonField.hidden =
+    elements.cancellationReason.value !== "Outro";
+});
+elements.cancelBookingModal.addEventListener("click", event => {
+  if (event.target === elements.cancelBookingModal) {
+    closeCancellationModal();
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !elements.cancelBookingModal.hidden) {
+    closeCancellationModal();
+  }
+});
+
 elements.form.addEventListener(
   "focusin",
   dismissFinishedTrackingForNewBooking
@@ -863,6 +1498,15 @@ elements.form.addEventListener("submit", async event => {
     return;
   }
 
+  if (!isProfessionalAvailable(professional)) {
+    showToast(
+      professionalAvailability(professional).label +
+      ". Escolha outro profissional."
+    );
+    await loadCatalog();
+    return;
+  }
+
   if (phone.length < 10) {
     showToast("Informe um WhatsApp válido.");
     return;
@@ -881,6 +1525,25 @@ elements.form.addEventListener("submit", async event => {
   elements.submit.disabled = true;
   elements.submit.textContent = "Enviando...";
 
+  await loadCatalog();
+
+  const refreshedProfessional = selectedProfessional();
+
+  if (!isProfessionalAvailable(refreshedProfessional)) {
+    showToast(
+      refreshedProfessional
+        ? professionalAvailability(refreshedProfessional).label +
+          ". Escolha outro profissional."
+        : "O profissional selecionado não está mais disponível."
+    );
+    elements.submit.disabled = false;
+    elements.submit.textContent = "Enviar pré-agendamento";
+    return;
+  }
+
+  const clientAccessToken = createClientAccessToken();
+  const clientTokenHash = await sha256Hex(clientAccessToken);
+
   const payload = {
     barbearia_id: SUPABASE_CONFIG.barbershopId,
     profissional_id: elements.professional.value,
@@ -893,22 +1556,41 @@ elements.form.addEventListener("submit", async event => {
     hora_preferida: elements.time.value,
     observacao: elements.notes.value.trim() || null,
     status: "agendado",
-    status_presenca: "nao_confirmado"
+    status_presenca: "nao_confirmado",
+    cliente_token_hash: clientTokenHash
   };
 
   try {
-    const { data, error } = await client
-      .from("agendamentos")
-      .insert(payload)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
-    localStorage.setItem(
-      LAST_BOOKING_KEY,
-      JSON.stringify(data)
+    const { data, error } = await client.rpc(
+      "criar_agendamento_cliente",
+      {
+        p_barbearia_id: payload.barbearia_id,
+        p_profissional_id: payload.profissional_id,
+        p_cliente_nome: payload.cliente_nome,
+        p_cliente_telefone: payload.cliente_telefone,
+        p_servico_id: payload.servico_id,
+        p_data_agendada: payload.data_agendada,
+        p_hora_preferida: payload.hora_preferida,
+        p_observacao: payload.observacao,
+        p_cliente_token_hash: payload.cliente_token_hash
+      }
     );
+
+    if (error) {
+      if (
+        error.message?.includes(
+          "criar_agendamento_cliente"
+        )
+      ) {
+        throw new Error(
+          "Execute a migração 06 no Supabase antes de testar o expediente."
+        );
+      }
+
+      throw error;
+    }
+
+    saveStoredBooking(data, clientAccessToken);
 
     currentAppointment = data;
     elements.bookingCard.hidden = true;
@@ -931,8 +1613,19 @@ elements.form.addEventListener("submit", async event => {
   }
 });
 
-elements.newBooking.addEventListener("click", () => {
-  dismissFinishedTrackingForNewBooking();
+function startNewBookingFlow() {
+  localStorage.removeItem(LAST_BOOKING_KEY);
+  currentAppointment = null;
+  hideClientPresenceReminder();
+  hideQueueTurnAlert();
+  renderQueuePosition(null);
+  renderTracking(null);
+
+  if (client && realtimeChannel) {
+    client.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+
   elements.form.reset();
   elements.professional.value = "";
   elements.date.value = todayKey();
@@ -942,13 +1635,19 @@ elements.newBooking.addEventListener("click", () => {
   elements.confirmation.hidden = true;
   elements.bookingCard.hidden = false;
   window.scrollTo({ top: 0, behavior: "smooth" });
-});
+}
+
+elements.newBooking.addEventListener("click", startNewBookingFlow);
+elements.newRequestButton.addEventListener("click", startNewBookingFlow);
 
 window.setInterval(() => {
   if (currentAppointment) {
-    refreshProximityAlert().catch(console.warn);
+    Promise.all([
+      refreshProximityAlert(),
+      refreshQueuePosition()
+    ]).catch(console.warn);
   }
-}, 30000);
+}, 15000);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

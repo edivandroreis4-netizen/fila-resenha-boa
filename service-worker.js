@@ -1,4 +1,4 @@
-const CACHE_NAME = "fila-resenha-boa-busca-global-presenca-v1";
+const CACHE_NAME = "resenha-boa-expediente-posicao-cancelamento-v4";
 const APP_ASSETS = [
   "./",
   "./index.html",
